@@ -1,0 +1,678 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════════════════
+     Cabeçalho + etapas
+═══════════════════════════════════════════════════════════ -->
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <h2><i class="fas fa-layer-group text-primary me-2"></i>Seleção</h2>
+        <p>Escolha as disciplinas e professores para montar a grade</p>
+    </div>
+    <div class="steps">
+        <span class="step active"><span class="counter me-1">1</span>Seleção</span>
+        <a href="/config" class="step"><span class="counter me-1">2</span>Configuração</a>
+        <a href="/generate" class="step"><span class="counter me-1">3</span>Geração</a>
+    </div>
+</div>
+
+<div class="row g-3">
+
+    <!-- ═══ COLUNA ESQUERDA — DISCIPLINAS ═══ -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="fas fa-book-open text-primary me-2"></i>Disciplinas</span>
+                <span class="counter" id="discCount">0</span>
+            </div>
+            <div class="card-body pb-2">
+
+                <div class="mb-2">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label mb-0">Curso</label>
+                        <button type="button" class="btn btn-xs btn-outline-secondary" id="recarregarCursosBtn"
+                                title="Recarregar lista de cursos do disco">
+                            <i class="fas fa-sync-alt"></i> Recarregar
+                        </button>
+                    </div>
+                    <select id="cursoSelect" class="form-select">
+                        <option value="">Carregando cursos...</option>
+                    </select>
+                    <small id="cursoSelect-status" class="d-block text-muted mt-1" style="font-size:.75rem">—</small>
+                    <div id="cursoSelect-erro" class="alert alert-warning py-2 mt-2" style="display:none;font-size:.82rem">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Nenhum curso encontrado na pasta <code>disciplinas/</code>.</strong><br>
+                        Adicione arquivos <code>.json</code> (ex: <code>Matemática.json</code>) com a lista de disciplinas
+                        e clique em <strong>Recarregar</strong>.
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-2">
+                    <div class="col-7">
+                        <label class="form-label">Filtrar por semestre</label>
+                        <select id="filtroSemestre" class="form-select form-select-sm" disabled>
+                            <option value="">Todos os semestres</option>
+                            {% for n in range(1, 11) %}
+                            <option value="{{ n }}">{{ n }}º semestre</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-5">
+                        <label class="form-label">Busca</label>
+                        <input type="text" id="searchDisc" class="form-control form-control-sm"
+                               placeholder="🔍 Buscar..." disabled>
+                    </div>
+                </div>
+
+                <div id="listaDisciplinas" class="scrollable mb-2">
+                    <div class="empty-state">
+                        <i class="fas fa-book-open"></i>
+                        <p>Selecione um curso acima</p>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mb-3">
+                    <button id="selecionarTodosBtn" class="btn btn-outline-secondary btn-sm flex-1" disabled>
+                        <i class="fas fa-check-double me-1"></i>Selecionar todos
+                    </button>
+                    <button id="limparDiscBtn" class="btn btn-outline-secondary btn-sm flex-1" disabled>
+                        <i class="fas fa-times me-1"></i>Limpar seleção
+                    </button>
+                </div>
+
+                <hr class="my-2">
+
+                <p class="section-title mb-2">Adicionar manualmente</p>
+                <div class="row g-2">
+                    <div class="col-8">
+                        <input type="text" id="novaDiscNome" class="form-control form-control-sm"
+                               placeholder="Nome da disciplina">
+                    </div>
+                    <div class="col-4">
+                        <input type="text" id="novaDiscCodigo" class="form-control form-control-sm"
+                               placeholder="Código">
+                    </div>
+                    <div class="col-5">
+                        <input type="text" id="novaDiscCurso" class="form-control form-control-sm"
+                               placeholder="Curso">
+                    </div>
+                    <div class="col-3">
+                        <input type="number" id="novaDiscSemestre" class="form-control form-control-sm"
+                               placeholder="Sem." min="1" max="10">
+                    </div>
+                    <div class="col-4">
+                        <input type="number" id="novaDiscCarga" class="form-control form-control-sm"
+                               placeholder="C.H." min="15">
+                    </div>
+                    <div class="col-12">
+                        <button id="addDiscBtn" class="btn btn-success btn-sm w-100">
+                            <i class="fas fa-plus me-1"></i>Adicionar Disciplina
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ COLUNA DIREITA — PROFESSORES ═══ -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="fas fa-chalkboard-user text-primary me-2"></i>Professores</span>
+                <span class="counter" id="profCount">0</span>
+            </div>
+            <div class="card-body pb-2">
+
+                <div class="mb-2">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="form-label mb-0">Instituto / Curso</label>
+                        <button type="button" class="btn btn-xs btn-outline-secondary" id="recarregarInstitutosBtn"
+                                title="Recarregar lista de institutos do disco">
+                            <i class="fas fa-sync-alt"></i> Recarregar
+                        </button>
+                    </div>
+                    <select id="profCursoSelect" class="form-select">
+                        <option value="">Carregando institutos...</option>
+                    </select>
+                    <small id="profCursoSelect-status" class="d-block text-muted mt-1" style="font-size:.75rem">—</small>
+                    <div id="profCursoSelect-erro" class="alert alert-warning py-2 mt-2" style="display:none;font-size:.82rem">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Nenhum instituto encontrado na pasta <code>professores/</code>.</strong><br>
+                        Adicione arquivos <code>.json</code> (ex: <code>ICEN.json</code>) com a lista de professores
+                        e clique em <strong>Recarregar</strong>.
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <input type="text" id="searchProf" class="form-control"
+                           placeholder="🔍 Buscar professor..." disabled>
+                </div>
+
+                <div id="listaProfessores" class="scrollable mb-2">
+                    <div class="empty-state">
+                        <i class="fas fa-user-tie"></i>
+                        <p>Selecione um instituto acima</p>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 mb-3">
+                    <button id="selecionarTodosProfBtn" class="btn btn-outline-secondary btn-sm flex-1" disabled>
+                        <i class="fas fa-check-double me-1"></i>Todos
+                    </button>
+                    <button id="limparProfBtn" class="btn btn-outline-secondary btn-sm flex-1" disabled>
+                        <i class="fas fa-times me-1"></i>Limpar
+                    </button>
+                </div>
+
+                <hr class="my-2">
+
+                <p class="section-title mb-2">Adicionar manualmente</p>
+                <div class="input-group">
+                    <input type="text" id="novoProfNome" class="form-control"
+                           placeholder="Nome do professor">
+                    <button id="addProfBtn" class="btn btn-success">
+                        <i class="fas fa-plus me-1"></i>Adicionar
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ LISTAS DE SELECIONADOS ═══ -->
+<div class="row g-3 mt-1">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="fas fa-check-circle text-success me-2"></i>Disciplinas Selecionadas</span>
+                <span id="discSelectedCount" class="chip">0</span>
+            </div>
+            <div class="card-body p-2" id="selecionadasDisc">
+                <div class="empty-state"><i class="fas fa-inbox"></i><p>Nenhuma disciplina selecionada</p></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="fas fa-check-circle text-success me-2"></i>Professores Selecionados</span>
+                <span id="profSelectedCount" class="chip">0</span>
+            </div>
+            <div class="card-body p-2" id="selecionadosProf">
+                <div class="empty-state"><i class="fas fa-inbox"></i><p>Nenhum professor selecionado</p></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ NAVEGAÇÃO PRINCIPAL ═══ -->
+<div class="text-center my-4">
+    <a href="/config" class="btn btn-primary btn-lg">
+        <i class="fas fa-arrow-right me-2"></i>Próximo: Configurações
+    </a>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════ -->
+<style>
+.btn-xs { font-size: .7rem; padding: .15rem .5rem; line-height: 1.3; }
+</style>
+
+<script>
+var disciplinasDisponiveis  = [];
+var professoresDisponiveis  = [];
+var disciplinasSelecionadas = {{ session.get('disciplinas_selecionadas', []) | tojson }};
+var professoresSelecionados = {{ session.get('professores_selecionados', []) | tojson }};
+
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ✨ CHAVE ÚNICA: curso + nome + semestre
+// Garante que "Cálculo I" de Matemática ≠ "Cálculo I" de Física
+function discKey(d) {
+    return (d.curso || 'Geral') + '||' + d.nome + '||' + (d.semestre || '');
+}
+
+function discJaSelecionada(d) {
+    return disciplinasSelecionadas.some(function (s) { return discKey(s) === discKey(d); });
+}
+
+function profJaSelecionado(p) {
+    return professoresSelecionados.some(function (s) { return s.nome === p.nome; });
+}
+
+
+function atualizarUI() {
+    document.getElementById('discCount').textContent         = disciplinasSelecionadas.length;
+    document.getElementById('discSelectedCount').textContent = disciplinasSelecionadas.length;
+    document.getElementById('profCount').textContent         = professoresSelecionados.length;
+    document.getElementById('profSelectedCount').textContent = professoresSelecionados.length;
+
+    var elD = document.getElementById('selecionadasDisc');
+    if (disciplinasSelecionadas.length === 0) {
+        elD.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i>'
+                      + '<p>Nenhuma disciplina selecionada</p></div>';
+    } else {
+        var html = '<div class="list-group list-group-flush">';
+        disciplinasSelecionadas.forEach(function (d, i) {
+            html += '<div class="list-group-item d-flex align-items-center justify-content-between py-2">'
+                  + '<div>'
+                  + '<strong class="d-block" style="font-size:.85rem">' + escHtml(d.nome) + '</strong>'
+                  + '<small class="text-muted">'
+                  +   escHtml(d.curso || '') + ' · ' + escHtml(String(d.carga_horaria)) + 'h'
+                  +   ' · Sem.' + escHtml(String(d.semestre))
+                  + '</small>'
+                  + '</div>'
+                  + '<div class="d-flex align-items-center gap-2">'
+                  +   '<span class="chip mono">' + escHtml(d.codigo) + '</span>'
+                  +   '<button class="btn btn-sm p-0 px-1 border-0 text-danger remove-disc"'
+                  +     ' data-index="' + i + '" title="Remover"><i class="fas fa-times"></i></button>'
+                  + '</div>'
+                  + '</div>';
+        });
+        html += '</div>';
+        elD.innerHTML = html;
+    }
+
+    var elP = document.getElementById('selecionadosProf');
+    if (professoresSelecionados.length === 0) {
+        elP.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i>'
+                      + '<p>Nenhum professor selecionado</p></div>';
+    } else {
+        var html2 = '<div class="list-group list-group-flush">';
+        professoresSelecionados.forEach(function (p, i) {
+            html2 += '<div class="list-group-item d-flex align-items-center justify-content-between py-2">'
+                   + '<strong style="font-size:.85rem">' + escHtml(p.nome) + '</strong>'
+                   + '<button class="btn btn-sm p-0 px-1 border-0 text-danger remove-prof"'
+                   +   ' data-index="' + i + '" title="Remover"><i class="fas fa-times"></i></button>'
+                   + '</div>';
+        });
+        html2 += '</div>';
+        elP.innerHTML = html2;
+    }
+}
+
+
+function salvarSelecoes() {
+    fetch('/selecionar_disciplinas', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ disciplinas: disciplinasSelecionadas })
+    }).then(function () { showAutoSave(); });
+
+    fetch('/selecionar_professores', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ professores: professoresSelecionados })
+    });
+}
+
+
+function renderizarDisciplinas() {
+    var filtroTexto = document.getElementById('searchDisc').value.toLowerCase();
+    var filtroSem   = document.getElementById('filtroSemestre').value;
+    var container   = document.getElementById('listaDisciplinas');
+
+    if (!disciplinasDisponiveis.length) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-book-open"></i>'
+                            + '<p>Selecione um curso acima</p></div>';
+        return;
+    }
+
+    var encontrados = 0;
+    var html = '<div class="list-group list-group-flush">';
+
+    disciplinasDisponiveis.forEach(function (d, idx) {
+        if (filtroSem && String(d.semestre) !== filtroSem) return;
+        if (filtroTexto && d.nome.toLowerCase().indexOf(filtroTexto) === -1) return;
+        encontrados++;
+        var marcado = discJaSelecionada(d) ? 'checked' : '';
+        html += '<label class="list-group-item d-flex align-items-center gap-2 py-2">'
+              + '<input type="checkbox" class="form-check-input disc-check"'
+              +   ' data-index="' + idx + '" ' + marcado + '>'
+              + '<div class="flex-grow-1 overflow-hidden">'
+              +   '<span class="d-block" style="font-size:.85rem;font-weight:600">'
+              +     escHtml(d.nome)
+              +   '</span>'
+              +   '<small class="text-muted">' + d.carga_horaria + 'h · Semestre ' + d.semestre + '</small>'
+              + '</div>'
+              + '<span class="chip mono flex-shrink-0">' + escHtml(d.codigo) + '</span>'
+              + '</label>';
+    });
+
+    if (!encontrados) {
+        html += '<div class="empty-state"><p>Nenhuma disciplina encontrada</p></div>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('.disc-check').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            var idx = parseInt(this.getAttribute('data-index'), 10);
+            var d   = disciplinasDisponiveis[idx];
+            if (!d) return;
+            if (this.checked) {
+                if (!discJaSelecionada(d)) disciplinasSelecionadas.push(d);
+            } else {
+                disciplinasSelecionadas = disciplinasSelecionadas.filter(function (s) {
+                    return discKey(s) !== discKey(d);
+                });
+            }
+            atualizarUI();
+            salvarSelecoes();
+        });
+    });
+}
+
+
+function renderizarProfessores() {
+    var filtro    = document.getElementById('searchProf').value.toLowerCase();
+    var container = document.getElementById('listaProfessores');
+
+    if (!professoresDisponiveis.length) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-user-tie"></i>'
+                            + '<p>Selecione um instituto acima</p></div>';
+        return;
+    }
+
+    var encontrados = 0;
+    var html = '<div class="list-group list-group-flush">';
+
+    professoresDisponiveis.forEach(function (p, idx) {
+        if (filtro && p.nome.toLowerCase().indexOf(filtro) === -1) return;
+        encontrados++;
+        var marcado = profJaSelecionado(p) ? 'checked' : '';
+        html += '<label class="list-group-item d-flex align-items-center gap-2 py-2">'
+              + '<input type="checkbox" class="form-check-input prof-check"'
+              +   ' data-index="' + idx + '" ' + marcado + '>'
+              + '<span style="font-size:.875rem;font-weight:500">' + escHtml(p.nome) + '</span>'
+              + '</label>';
+    });
+
+    if (!encontrados) {
+        html += '<div class="empty-state"><p>Nenhum professor encontrado</p></div>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('.prof-check').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            var idx = parseInt(this.getAttribute('data-index'), 10);
+            var p   = professoresDisponiveis[idx];
+            if (!p) return;
+            if (this.checked) {
+                if (!profJaSelecionado(p)) professoresSelecionados.push(p);
+            } else {
+                professoresSelecionados = professoresSelecionados.filter(function (s) {
+                    return s.nome !== p.nome;
+                });
+            }
+            atualizarUI();
+            salvarSelecoes();
+        });
+    });
+}
+
+
+function carregarDisciplinas(curso) {
+    var container = document.getElementById('listaDisciplinas');
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Carregando...</p></div>';
+    fetch('/api/disciplinas/' + encodeURIComponent(curso))
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (data) {
+            disciplinasDisponiveis = data;
+            renderizarDisciplinas();
+            ['filtroSemestre', 'selecionarTodosBtn', 'limparDiscBtn'].forEach(function (id) {
+                document.getElementById(id).disabled = false;
+            });
+            document.getElementById('searchDisc').disabled = false;
+        })
+        .catch(function (err) {
+            container.innerHTML = '<div class="empty-state"><p>Erro: ' + err.message + '</p></div>';
+        });
+}
+
+function carregarProfessores(instituto) {
+    var container = document.getElementById('listaProfessores');
+    container.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Carregando...</p></div>';
+    fetch('/api/professores/' + encodeURIComponent(instituto))
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (data) {
+            professoresDisponiveis = data;
+            renderizarProfessores();
+            ['selecionarTodosProfBtn', 'limparProfBtn'].forEach(function (id) {
+                document.getElementById(id).disabled = false;
+            });
+            document.getElementById('searchProf').disabled = false;
+        })
+        .catch(function (err) {
+            container.innerHTML = '<div class="empty-state"><p>Erro: ' + err.message + '</p></div>';
+        });
+}
+
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Carregamento da camada de dados ───────────────────────────────────────
+    // Usa /api/status para verificar saúde dos dados ANTES de tentar renderizar.
+    // Isso garante que mesmo após reset (que NÃO apaga arquivos), os cursos
+    // aparecem corretamente — a fonte de dados são os arquivos, não a sessão.
+
+    function carregarCursoComRetry(endpoint, selectId, labelTipo, tentativas) {
+        var sel = document.getElementById(selectId);
+        var statusEl = document.getElementById(selectId + '-status');
+        var errDiv = document.getElementById(selectId + '-erro');
+        if (!sel) return;
+
+        // Esconder erro anterior, mostrar loading
+        if (errDiv) errDiv.style.display = 'none';
+        if (statusEl) statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Carregando...';
+        sel.innerHTML = '<option value="">⏳ Carregando ' + labelTipo + '...</option>';
+        sel.disabled = true;
+
+        fetch(endpoint, { cache: 'no-store' })  // NO cache — sempre relê disco
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function(cursos) {
+                sel.disabled = false;
+                if (!cursos || cursos.length === 0) {
+                    sel.innerHTML = '<option value="">⚠️ Nenhum ' + labelTipo + ' encontrado</option>';
+                    if (statusEl) statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>0 ' + labelTipo + 's encontrados</span>';
+                    if (errDiv) errDiv.style.display = '';
+                    return;
+                }
+                // Preservar seleção anterior se possível
+                var anterior = sel.getAttribute('data-selecionado') || '';
+                sel.innerHTML = '<option value="">Selecione ' + (labelTipo === 'curso' ? 'um curso...' : 'um instituto...') + '</option>';
+                cursos.forEach(function(c) {
+                    var opt = document.createElement('option');
+                    opt.value = c; opt.textContent = c;
+                    if (c === anterior) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                if (statusEl) statusEl.innerHTML = '<span class="text-success"><i class="fas fa-check-circle me-1"></i>' + cursos.length + ' ' + labelTipo + (cursos.length !== 1 ? 's' : '') + ' disponíve' + (cursos.length !== 1 ? 'is' : 'l') + '</span>';
+            })
+            .catch(function(err) {
+                if (tentativas > 0) {
+                    if (statusEl) statusEl.innerHTML = '<i class="fas fa-redo me-1"></i>Tentando novamente (' + tentativas + ')...';
+                    setTimeout(function() { carregarCursoComRetry(endpoint, selectId, labelTipo, tentativas - 1); }, 1000);
+                } else {
+                    sel.disabled = false;
+                    sel.innerHTML = '<option value="">❌ Erro ao carregar</option>';
+                    if (statusEl) statusEl.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle me-1"></i>Erro: ' + err.message + '</span>';
+                    if (errDiv) errDiv.style.display = '';
+                    console.error('[Combinix] Falha ao carregar ' + endpoint + ':', err);
+                }
+            });
+    }
+
+    function recarregarCursos() {
+        // Salva seleção atual antes de recarregar
+        var selDisc = document.getElementById('cursoSelect');
+        var selProf = document.getElementById('profCursoSelect');
+        if (selDisc && selDisc.value) selDisc.setAttribute('data-selecionado', selDisc.value);
+        if (selProf && selProf.value) selProf.setAttribute('data-selecionado', selProf.value);
+        carregarCursoComRetry('/api/cursos/disciplinas', 'cursoSelect', 'curso', 3);
+        carregarCursoComRetry('/api/cursos/professores', 'profCursoSelect', 'instituto', 3);
+    }
+
+    // Verificar saúde dos dados primeiro (não bloqueia o carregamento)
+    fetch('/api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(status) {
+            if (!status.ok) {
+                console.warn('[Combinix] Data layer incompleta:', status);
+            }
+        })
+        .catch(function() { /* não crítico */ });
+
+    // Carregar cursos de disciplinas e institutos de professores com retry (3 tentativas)
+    carregarCursoComRetry('/api/cursos/disciplinas', 'cursoSelect', 'curso', 3);
+    carregarCursoComRetry('/api/cursos/professores', 'profCursoSelect', 'instituto', 3);
+
+    // Botões de recarregar manual
+    var btnRC = document.getElementById('recarregarCursosBtn');
+    if (btnRC) btnRC.addEventListener('click', function() {
+        carregarCursoComRetry('/api/cursos/disciplinas', 'cursoSelect', 'curso', 3);
+    });
+    var btnRI = document.getElementById('recarregarInstitutosBtn');
+    if (btnRI) btnRI.addEventListener('click', function() {
+        carregarCursoComRetry('/api/cursos/professores', 'profCursoSelect', 'instituto', 3);
+    });
+
+    document.getElementById('cursoSelect').addEventListener('change', function () {
+        var curso = this.value;
+        if (!curso) {
+            disciplinasDisponiveis = [];
+            renderizarDisciplinas();
+            ['filtroSemestre', 'selecionarTodosBtn', 'limparDiscBtn'].forEach(function (id) {
+                document.getElementById(id).disabled = true;
+            });
+            document.getElementById('searchDisc').disabled = true;
+            document.getElementById('searchDisc').value = '';
+            document.getElementById('filtroSemestre').value = '';
+            return;
+        }
+        carregarDisciplinas(curso);
+    });
+
+    document.getElementById('profCursoSelect').addEventListener('change', function () {
+        var instituto = this.value;
+        if (!instituto) {
+            professoresDisponiveis = [];
+            renderizarProfessores();
+            ['selecionarTodosProfBtn', 'limparProfBtn'].forEach(function (id) {
+                document.getElementById(id).disabled = true;
+            });
+            document.getElementById('searchProf').disabled = true;
+            document.getElementById('searchProf').value = '';
+            return;
+        }
+        carregarProfessores(instituto);
+    });
+
+    document.getElementById('filtroSemestre').addEventListener('change', renderizarDisciplinas);
+    document.getElementById('searchDisc').addEventListener('input', renderizarDisciplinas);
+    document.getElementById('searchProf').addEventListener('input', renderizarProfessores);
+
+    document.getElementById('selecionarTodosBtn').addEventListener('click', function () {
+        var filtroSem   = document.getElementById('filtroSemestre').value;
+        var filtroTexto = document.getElementById('searchDisc').value.toLowerCase();
+        disciplinasDisponiveis.forEach(function (d) {
+            if (filtroSem   && String(d.semestre) !== filtroSem) return;
+            if (filtroTexto && d.nome.toLowerCase().indexOf(filtroTexto) === -1) return;
+            if (!discJaSelecionada(d)) disciplinasSelecionadas.push(d);
+        });
+        renderizarDisciplinas();
+        atualizarUI();
+        salvarSelecoes();
+    });
+
+    document.getElementById('limparDiscBtn').addEventListener('click', function () {
+        var chaves = new Set(disciplinasDisponiveis.map(discKey));
+        disciplinasSelecionadas = disciplinasSelecionadas.filter(function (d) {
+            return !chaves.has(discKey(d));
+        });
+        renderizarDisciplinas();
+        atualizarUI();
+        salvarSelecoes();
+    });
+
+    document.getElementById('selecionarTodosProfBtn').addEventListener('click', function () {
+        professoresDisponiveis.forEach(function (p) {
+            if (!profJaSelecionado(p)) professoresSelecionados.push(p);
+        });
+        renderizarProfessores();
+        atualizarUI();
+        salvarSelecoes();
+    });
+
+    document.getElementById('limparProfBtn').addEventListener('click', function () {
+        var nomes = new Set(professoresDisponiveis.map(function (p) { return p.nome; }));
+        professoresSelecionados = professoresSelecionados.filter(function (p) {
+            return !nomes.has(p.nome);
+        });
+        renderizarProfessores();
+        atualizarUI();
+        salvarSelecoes();
+    });
+
+    document.getElementById('addDiscBtn').addEventListener('click', function () {
+        var nome     = document.getElementById('novaDiscNome').value.trim();
+        var codigo   = document.getElementById('novaDiscCodigo').value.trim() || 'MAN';
+        var curso    = document.getElementById('novaDiscCurso').value.trim() || 'Manual';
+        var semestre = parseInt(document.getElementById('novaDiscSemestre').value, 10) || 1;
+        var carga    = parseInt(document.getElementById('novaDiscCarga').value, 10) || 60;
+        if (!nome) { alert('Digite o nome da disciplina'); return; }
+        var fd = new FormData();
+        fd.append('nome', nome); fd.append('codigo', codigo);
+        fd.append('curso', curso); fd.append('semestre', semestre); fd.append('carga', carga);
+        fetch('/adicionar_disciplina_manual', { method: 'POST', body: fd })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.status === 'erro') alert('⚠️ ' + data.mensagem);
+                else location.reload();
+            });
+    });
+
+    document.getElementById('addProfBtn').addEventListener('click', function () {
+        var nome = document.getElementById('novoProfNome').value.trim();
+        if (!nome) { alert('Digite o nome do professor'); return; }
+        var fd = new FormData();
+        fd.append('nome', nome);
+        fetch('/adicionar_professor_manual', { method: 'POST', body: fd })
+            .then(function () { location.reload(); });
+    });
+
+    document.getElementById('selecionadasDisc').addEventListener('click', function (e) {
+        var btn = e.target.closest('.remove-disc');
+        if (!btn) return;
+        var fd = new FormData();
+        fd.append('index', btn.getAttribute('data-index'));
+        fetch('/remover_disciplina', { method: 'POST', body: fd })
+            .then(function () { location.reload(); });
+    });
+
+    document.getElementById('selecionadosProf').addEventListener('click', function (e) {
+        var btn = e.target.closest('.remove-prof');
+        if (!btn) return;
+        var fd = new FormData();
+        fd.append('index', btn.getAttribute('data-index'));
+        fetch('/remover_professor', { method: 'POST', body: fd })
+            .then(function () { location.reload(); });
+    });
+
+    atualizarUI();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+[
+    {"nome": "Introdução ao Cálculo", "codigo": "IC", "carga_horaria": 90, "semestre": 1},
+    {"nome": "Sociedades, Diferenças e Direitos Humanos nos Espaços Lusófonos", "codigo": "SDDHEL", "carga_horaria": 60, "semestre": 1},
+    {"nome": "Leitura e Produção Textual I", "codigo": "LPT1", "carga_horaria": 60, "semestre": 1},
+    {"nome": "Práticas Educativas I", "codigo": "PE1", "carga_horaria": 45, "semestre": 1},
+    {"nome": "Iniciação ao Pensamento Científico: Problematizações Epistemológicas", "codigo": "IPC", "carga_horaria": 45, "semestre": 1},
+    {"nome": "Introdução à Física", "codigo": "IF", "carga_horaria": 30, "semestre": 1},
+    {"nome": "Inserção à Vida Universitária", "codigo": "IVU", "carga_horaria": 15, "semestre": 1},
+
+    {"nome": "Física Geral I", "codigo": "FG1", "carga_horaria": 90, "semestre": 2},
+    {"nome": "Cálculo Diferencial e Integral I", "codigo": "CDI1", "carga_horaria": 90, "semestre": 2},
+    {"nome": "Leitura e Produção Textual II", "codigo": "LPT2", "carga_horaria": 60, "semestre": 2},
+    {"nome": "Química Geral", "codigo": "QG", "carga_horaria": 45, "semestre": 2},
+    {"nome": "Práticas Educativas II", "codigo": "PE2", "carga_horaria": 45, "semestre": 2},
+    {"nome": "Fundamentos da Educação", "codigo": "FE", "carga_horaria": 45, "semestre": 2},
+
+    {"nome": "Física Geral II", "codigo": "FG2", "carga_horaria": 90, "semestre": 3},
+    {"nome": "Cálculo Diferencial e Integral II", "codigo": "CDI2", "carga_horaria": 90, "semestre": 3},
+    {"nome": "Geometria Analítica", "codigo": "GA", "carga_horaria": 60, "semestre": 3},
+    {"nome": "Política Educacional e Gestão", "codigo": "PEG", "carga_horaria": 60, "semestre": 3},
+    {"nome": "Práticas Educativas III", "codigo": "PE3", "carga_horaria": 45, "semestre": 3},
+    {"nome": "Educação Ambiental", "codigo": "EA", "carga_horaria": 45, "semestre": 3},
+    {"nome": "Física Experimental I", "codigo": "FE1", "carga_horaria": 15, "semestre": 3},
+
+    {"nome": "Física Geral III", "codigo": "FG3", "carga_horaria": 90, "semestre": 4},
+    {"nome": "Instrumentação para o Ensino de Mecânica", "codigo": "IEM", "carga_horaria": 90, "semestre": 4},
+    {"nome": "Álgebra Linear", "codigo": "AL", "carga_horaria": 60, "semestre": 4},
+    {"nome": "Cálculo Diferencial e Integral III", "codigo": "CDI3", "carga_horaria": 60, "semestre": 4},
+    {"nome": "Psicologia da Educação", "codigo": "PE", "carga_horaria": 60, "semestre": 4},
+    {"nome": "Física Experimental II", "codigo": "FE2", "carga_horaria": 15, "semestre": 4},
+
+    {"nome": "Instrumentação para o Ensino de Oscilações, Ondas e Termologia", "codigo": "IEOOT", "carga_horaria": 90, "semestre": 5},
+    {"nome": "Física Geral IV", "codigo": "FG4", "carga_horaria": 60, "semestre": 5},
+    {"nome": "Fundamentos de Astronomia", "codigo": "FAS", "carga_horaria": 45, "semestre": 5},
+    {"nome": "Didática", "codigo": "DID", "carga_horaria": 60, "semestre": 5},
+    {"nome": "Ótica", "codigo": "OTC", "carga_horaria": 45, "semestre": 5},
+    {"nome": "História da Física I", "codigo": "HF1", "carga_horaria": 45, "semestre": 5},
+    {"nome": "Física Experimental III", "codigo": "FE3", "carga_horaria": 15, "semestre": 5},
+
+    {"nome": "Métodos Matemáticos para a Física I", "codigo": "MM1", "carga_horaria": 90, "semestre": 6},
+    {"nome": "Física Moderna", "codigo": "FM", "carga_horaria": 90, "semestre": 6},
+    {"nome": "Estágio Supervisionado I", "codigo": "ES1", "carga_horaria": 90, "semestre": 6},
+    {"nome": "Física Geral V", "codigo": "FG5", "carga_horaria": 60, "semestre": 6},
+    {"nome": "Instrumentação para o Ensino de Ótica e Física Moderna", "codigo": "IEOFM", "carga_horaria": 45, "semestre": 6},
+    {"nome": "Fundamentos de Astrofísica", "codigo": "FA", "carga_horaria": 30, "semestre": 6},
+    {"nome": "Física Experimental IV", "codigo": "FE4", "carga_horaria": 15, "semestre": 6},
+
+    {"nome": "Mecânica Quântica I", "codigo": "MQ1", "carga_horaria": 90, "semestre": 7},
+    {"nome": "Mecânica Teórica I", "codigo": "MT1", "carga_horaria": 90, "semestre": 7},
+    {"nome": "Estágio Supervisionado II", "codigo": "ES2", "carga_horaria": 90, "semestre": 7},
+    {"nome": "Instrumentação para o Ensino de Eletricidade e Magnetismo", "codigo": "IEEM", "carga_horaria": 45, "semestre": 7},
+    {"nome": "Física Experimental V", "codigo": "FE5", "carga_horaria": 15, "semestre": 7},
+
+    {"nome": "Estágio Supervisionado III", "codigo": "ES3", "carga_horaria": 105, "semestre": 8},
+    {"nome": "Eletromagnetismo I", "codigo": "ELT1", "carga_horaria": 90, "semestre": 8},
+    {"nome": "Optativa I", "codigo": "-", "carga_horaria": 90, "semestre": 8},
+    {"nome": "Língua Brasileira de Sinais (LIBRAS)", "codigo": "LBS", "carga_horaria": 60, "semestre": 8},
+    {"nome": "Trabalho de Conclusão de Curso I", "codigo": "TCC1", "carga_horaria": 30, "semestre": 8},
+
+    {"nome": "Estágio Supervisionado IV", "codigo": "ES4", "carga_horaria": 120, "semestre": 9},
+    {"nome": "Optativa II", "codigo": "-", "carga_horaria": 45, "semestre": 9},
+    {"nome": "Trabalho de Conclusão de Curso II", "codigo": "TCC2", "carga_horaria": 30, "semestre": 9}
+]

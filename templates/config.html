@@ -1,0 +1,834 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div><h2><i class="fas fa-sliders text-primary me-2"></i>Configuração</h2>
+    <p>Restrições, fixações e parâmetros da geração</p></div>
+    <div class="steps">
+        <a href="/" class="step done"><span class="counter me-1">✓</span>Seleção</a>
+        <span class="step active"><span class="counter me-1">2</span>Configuração</span>
+        <a href="/generate" class="step"><span class="counter me-1">3</span>Geração</a>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="configTabs">
+    <li class="nav-item"><a class="nav-link active" href="#" data-tab="disciplinas">
+        <i class="fas fa-book me-1"></i>Disciplinas
+        <span class="badge bg-primary ms-1" id="disc-count-badge">{{ disciplinas|length }}</span>
+    </a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="professores">
+        <i class="fas fa-user-tie me-1"></i>Professores
+        <span class="badge bg-primary ms-1">{{ professores|length }}</span>
+    </a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="choque">
+        <i class="fas fa-exclamation-circle me-1"></i>Conflitos
+        <span class="badge bg-primary ms-1" id="conflitos-count">{{ grupos_choque|length }}</span>
+    </a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="avancadas">
+        <i class="fas fa-cog me-1"></i>Avançadas
+    </a></li>
+</ul>
+
+
+<!-- ═══ ABA DISCIPLINAS ═══ -->
+<div id="tab-disciplinas" class="tab-pane">
+    <div class="alert alert-info mb-3" style="font-size:.82rem">
+        <i class="fas fa-info-circle me-2"></i>
+        Clique nas células para alternar: <strong>livre → fixo 🔒 → restrito 🚫</strong>.
+        Regras: fixações ≤ aulas/semana · disponíveis ≥ aulas/semana.
+    </div>
+
+    {% if not disciplinas %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Nenhuma disciplina selecionada.</strong>
+        <a href="/" class="alert-link">Volte à tela de Seleção</a> para escolher disciplinas.
+        <br><small class="text-muted">As demais abas (Professores, Conflitos, Avançadas) continuam acessíveis.</small>
+    </div>
+    {% else %}
+    <div id="cards-disciplinas">
+    {% for d in disciplinas %}
+    {% set disc_idx = loop.index0 %}
+    {% set cfg = config_disciplinas[disc_idx] if disc_idx < config_disciplinas|length
+                 else {'tipo':'interna','aulas_semanais':2,'semestre_oferta':1,'fixacoes':[],'restricoes':[]} %}
+    <div class="card mb-3" id="card-disc-{{ disc_idx }}">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <strong>{{ d.nome }}</strong>
+                <span class="chip mono ms-2">{{ d.codigo }}</span>
+                <span class="chip ms-1">{{ d.carga_horaria }}h</span>
+                <span class="chip chip-lilac ms-1">{{ d.curso or 'Geral' }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted" style="font-size:.8rem">Sem. {{ d.semestre }}</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary restaurar-disc"
+                        data-idx="{{ disc_idx }}" data-nome="{{ d.nome }}">
+                    <i class="fas fa-rotate-left me-1"></i>Restaurar
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary text-danger remover-disc"
+                        data-idx="{{ disc_idx }}" data-nome="{{ d.nome }}"
+                        style="border-color:var(--rose)" title="Remover esta disciplina da seleção">
+                    <i class="fas fa-trash me-1"></i>Remover
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Tipo</label>
+                    <select class="form-select form-select-sm tipo-disciplina" data-idx="{{ disc_idx }}">
+                        <option value="interna"  {% if cfg.tipo == 'interna'  %}selected{% endif %}>Interna</option>
+                        <option value="externa"  {% if cfg.tipo == 'externa'  %}selected{% endif %}>Externa</option>
+                        <option value="cedida"   {% if cfg.tipo == 'cedida'   %}selected{% endif %}>Cedida</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Aulas/semana</label>
+                    <input type="number" class="form-control form-control-sm aulas-semanais"
+                           data-idx="{{ disc_idx }}" value="{{ cfg.aulas_semanais }}" min="1" max="8">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Semestre oferta</label>
+                    <input type="number" class="form-control form-control-sm semestre-oferta"
+                           data-idx="{{ disc_idx }}" value="{{ cfg.semestre_oferta }}" min="1" max="10">
+                </div>
+            </div>
+            <p class="section-title">Horários — 8 blocos de 1h (manhã+tarde; almoço bloqueado)</p>
+            <div class="table-responsive">
+                <table class="table table-bordered mb-0" style="font-size:.78rem">
+                    <thead><tr><th style="min-width:90px">Horário</th>
+                    {% for dia in dias %}<th class="text-center">{{ dia }}</th>{% endfor %}
+                    </tr></thead>
+                    <tbody>
+                    {% for hora in horarios %}
+                    {% if loop.index0 == 4 %}<tr>
+                        <td class="text-muted mono">12:00-14:00</td>
+                        {% for dia in dias %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.7rem">almoço</td>{% endfor %}
+                    </tr>{% endif %}
+                    <tr>
+                        <td class="text-muted mono">{{ hora }}</td>
+                        {% for dia in dias %}
+                        {% set slot = [dia, hora] %}
+                        {% set is_f = slot in cfg.fixacoes %}
+                        {% set is_r = slot in cfg.restricoes %}
+                        <td class="slot-cell text-center {% if is_f %}slot-fixo{% elif is_r %}slot-restrito{% else %}slot-livre{% endif %}"
+                            data-dia="{{ dia }}" data-hora="{{ hora }}" data-idx="{{ disc_idx }}"
+                            data-state="{% if is_f %}fixo{% elif is_r %}restrito{% else %}livre{% endif %}">
+                            {% if is_f %}🔒 Fixa{% elif is_r %}🚫{% else %}—{% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <small class="text-muted d-block mt-1" id="status-disc-{{ disc_idx }}">
+                <i class="fas fa-info-circle me-1"></i>
+                <span class="n-fixacoes">{{ cfg.fixacoes|length }}</span> fixações ·
+                <span class="n-restricoes">{{ cfg.restricoes|length }}</span> restrições
+            </small>
+        </div>
+    </div>
+    {% endfor %}
+    </div>
+
+    <div class="d-flex gap-2 mt-3 mb-3 p-3"
+         style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+                position:sticky;bottom:20px;z-index:100">
+        <div class="flex-1 align-self-center">
+            <strong>💾 Salvar Configurações de Disciplinas</strong>
+            <small class="text-muted d-block">Salva tipo, aulas/semana e semestre de todas as disciplinas e sincroniza com a aba de professores.</small>
+        </div>
+        <button id="salvarTodasDiscBtn" class="btn btn-primary">
+            <i class="fas fa-save me-2"></i>Salvar
+        </button>
+        <span id="salvarDiscFeedback" style="display:none;align-self:center">
+            <span class="chip chip-success"><i class="fas fa-check me-1"></i>Salvo e sincronizado!</span>
+        </span>
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ═══ ABA PROFESSORES ═══ -->
+<div id="tab-professores" class="tab-pane" style="display:none">
+    {% if not professores %}
+    <div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>
+    Nenhum professor. <a href="/">Volte à seleção</a>.</div>
+    {% else %}
+    <div class="alert alert-info mb-3" style="font-size:.82rem">
+        <i class="fas fa-hand-pointer me-2"></i>
+        Clique num professor para configurar. As colunas de disciplinas refletem o tipo definido em "Disciplinas".
+    </div>
+    <div class="row g-3">
+        {% for p in professores %}{% set pi = loop.index0 %}
+        {% set cp = config_professores[pi] if pi < config_professores|length else {'disciplinas_internas':[],'carga_maxima':20,'disponibilidade':[]} %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card prof-card h-100" data-prof-idx="{{ pi }}" style="cursor:pointer">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="fas fa-user-tie text-primary"></i>
+                        <strong style="font-size:.9rem">{{ p.nome }}</strong>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap" style="font-size:.75rem">
+                        <span class="chip chip-lilac"><i class="fas fa-book me-1"></i>
+                            <span class="prof-ndisc" data-prof-idx="{{ pi }}">{{ cp.disciplinas_internas|length }}</span> disc.
+                        </span>
+                        <span class="chip chip-teal"><i class="fas fa-clock me-1"></i>
+                            <span class="prof-ncarga" data-prof-idx="{{ pi }}">{{ cp.carga_maxima }}</span>h/sem
+                        </span>
+                    </div>
+                    <small class="text-muted d-block mt-2"><i class="fas fa-cog me-1"></i>Clique para configurar</small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="d-flex gap-2 mt-4 mb-3 p-3"
+         style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+                position:sticky;bottom:20px;z-index:100">
+        <div class="flex-1 align-self-center">
+            <strong>💾 Salvar Configurações de Professores</strong>
+            <small class="text-muted d-block">Salva carga e disciplinas sem redirecionar.</small>
+        </div>
+        <button id="salvarTodosProfBtn" class="btn btn-primary">
+            <i class="fas fa-save me-2"></i>Salvar
+        </button>
+        <span id="salvarProfFeedback" style="display:none;align-self:center">
+            <span class="chip chip-success"><i class="fas fa-check me-1"></i>Salvo!</span>
+        </span>
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- ═══ ABA CONFLITOS ═══ -->
+<div id="tab-choque" class="tab-pane" style="display:none">
+    {% if not disciplinas %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Sem disciplinas</strong> não é possível criar grupos de conflito.
+        <a href="/" class="alert-link">Selecione disciplinas primeiro</a>.
+        <br><small class="text-muted">Conflitos já cadastrados (de sessões anteriores) continuam listados abaixo:</small>
+    </div>
+
+    <!-- Se existem grupos salvos de antes, ainda permitir gerenciá-los -->
+    {% if grupos_choque %}
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span><i class="fas fa-list text-primary me-2"></i>Grupos Existentes</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary text-danger" id="limparTodosConflitosBtn"
+                    style="border-color:var(--rose)">
+                <i class="fas fa-broom me-1"></i>Limpar Todos
+            </button>
+        </div>
+        <div class="card-body" id="listaGrupos">
+        {% for g in grupos_choque %}
+        <div class="alert alert-light border mb-2 d-flex justify-content-between grupo-item" data-idx="{{ loop.index0 }}">
+            <div><strong>{{ g.nome }}</strong><div class="mt-1">{% for d in g.disciplinas %}<span class="chip chip-danger me-1">{{ d }}</span>{% endfor %}</div></div>
+            <button class="btn btn-sm text-danger border-0 remove-grupo" data-idx="{{ loop.index0 }}"><i class="fas fa-trash"></i></button>
+        </div>
+        {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="alert alert-info mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2" style="font-size:.82rem">
+        <div><i class="fas fa-info-circle me-2"></i>Agrupe disciplinas que <strong>não podem coincidir no mesmo horário</strong>.</div>
+        <button type="button" class="btn btn-sm btn-outline-secondary text-danger" id="limparTodosConflitosBtn"
+                style="border-color:var(--rose)">
+            <i class="fas fa-broom me-1"></i>Limpar Todos
+        </button>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-plus-circle text-primary me-2"></i>Novo Grupo</div>
+                <div class="card-body">
+                    <label class="form-label">Nome único</label>
+                    <input type="text" id="novoGrupoNome" class="form-control mb-3" placeholder="Ex: Turma A – 1º Sem">
+                    <label class="form-label">Disciplinas (mín. 2) — agrupadas por semestre</label>
+                    <div class="scrollable mb-2" style="max-height:320px">
+                        {% set sems = {} %}
+                        {% for d in disciplinas %}{% if sems.update({d.semestre: sems.get(d.semestre,[]) + [d]}) %}{% endif %}{% endfor %}
+                        {% for sem in sems.keys()|list|sort %}
+                        <div class="semestre-group">
+                            <div class="semestre-header"><i class="fas fa-graduation-cap me-1"></i>Semestre {{ sem }}</div>
+                            {% for d in sems[sem] %}
+                            <label class="list-group-item d-flex align-items-center gap-2 py-2" style="cursor:pointer;font-size:.83rem">
+                                <input type="checkbox" class="form-check-input grupo-disc-check" value="{{ d.nome }}">
+                                {{ d.nome }} <small class="text-muted">({{ d.curso or 'Geral' }})</small>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button id="adicionarGrupoBtn" class="btn btn-primary w-100">
+                        <i class="fas fa-plus me-1"></i>Adicionar Grupo
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <span><i class="fas fa-list text-primary me-2"></i>Grupos</span>
+                    <span class="text-muted" id="totalGruposLabel" style="font-size:.78rem">{{ grupos_choque|length }} grupo{{ 's' if grupos_choque|length != 1 }}</span>
+                </div>
+                <div class="card-body" id="listaGrupos">
+                    {% for g in grupos_choque %}
+                    <div class="alert alert-light border mb-2 d-flex justify-content-between grupo-item" data-idx="{{ loop.index0 }}">
+                        <div><strong>{{ g.nome }}</strong><div class="mt-1">{% for d in g.disciplinas %}<span class="chip chip-danger me-1">{{ d }}</span>{% endfor %}</div></div>
+                        <button class="btn btn-sm text-danger border-0 remove-grupo" data-idx="{{ loop.index0 }}"><i class="fas fa-trash"></i></button>
+                    </div>
+                    {% endfor %}
+                    <div id="empty-grupos" class="empty-state" {% if grupos_choque %}style="display:none"{% endif %}>
+                        <i class="fas fa-object-group d-block"></i><p>Nenhum grupo</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+</div>
+
+
+<!-- ═══ ABA AVANÇADAS (inclui Export/Import/Reset) ═══ -->
+<div id="tab-avancadas" class="tab-pane" style="display:none">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-cog text-primary me-2"></i>Parâmetros de Geração</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Estado do Sábado</label>
+                        <select class="form-select" id="estadoSabado">
+                            <option value="desativado" {% if config_avancadas.estado_sabado == 'desativado' %}selected{% endif %}>
+                                🔴 Desativado — sábado não existe para o solver
+                            </option>
+                            <option value="normal" {% if config_avancadas.estado_sabado == 'normal' %}selected{% endif %}>
+                                🟡 Ativado normal — dia comum
+                            </option>
+                            <option value="restrito" {% if config_avancadas.estado_sabado == 'restrito' %}selected{% endif %}>
+                                🔵 Ativado restrito — último recurso (nível 3 apenas)
+                            </option>
+                        </select>
+                        <small class="text-muted d-block mt-1">Fixações no sábado são SEMPRE respeitadas, independente deste estado.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Blocos de aula</label>
+                        <select class="form-select" id="quebrarBlocos">
+                            <option value="flexivel" {% if config_avancadas.quebrar_blocos == 'flexivel' %}selected{% endif %}>Flexível — blocos 2+3 (recomendado)</option>
+                            <option value="obrigatoria" {% if config_avancadas.quebrar_blocos == 'obrigatoria' %}selected{% endif %}>Obrigatória — sem blocos duplos</option>
+                            <option value="ignorada" {% if config_avancadas.quebrar_blocos == 'ignorada' %}selected{% endif %}>Ignorada</option>
+                        </select>
+                    </div>
+
+                    <div class="card p-3 mb-3" style="background:var(--bg2);border:1px solid var(--border)">
+                        <p class="section-title mb-2">Níveis de Restrição (cascata automática)</p>
+                        <div style="font-size:.8rem">
+                            <div class="d-flex align-items-center gap-2 mb-1"><span class="chip" style="background:#fee2e2;color:#991b1b">Nível 1 Rígido</span> Blocos diferentes dias · sem 17-18h · sem sábado</div>
+                            <div class="d-flex align-items-center gap-2 mb-1"><span class="chip" style="background:#fef3c7;color:#92400e">Nível 2 Moderado</span> Até 2 blocos/dia (só blocos de 2) · 17-18h só com bloco 3</div>
+                            <div class="d-flex align-items-center gap-2"><span class="chip" style="background:#d1fae5;color:#065f46">Nível 3 Flexível</span> Máx 2 blocos/dia · 17-18h se inevitável · sábado como fallback</div>
+                        </div>
+                        <small class="text-muted d-block mt-2">O solver tenta Nível 1 → 2 → 3 por disciplina automaticamente.</small>
+                    </div>
+
+                    <button id="salvarAvancadas" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Salvar Parâmetros
+                    </button>
+                    <span id="avancadasFeedback" class="ms-2" style="display:none">
+                        <span class="chip chip-success"><i class="fas fa-check me-1"></i>Salvo!</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export / Import / Reset — APENAS aqui -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="fas fa-database text-primary me-2"></i>Dados e Backup</div>
+                <div class="card-body d-flex flex-column gap-3">
+                    <div>
+                        <strong class="d-block mb-1">📤 Exportar</strong>
+                        <a href="/export" class="btn btn-outline-secondary w-100">
+                            <i class="fas fa-download me-2"></i>Baixar backup completo (JSON)
+                        </a>
+                        <small class="text-muted d-block mt-1">Salva seleções, configurações e grades geradas.</small>
+                    </div>
+                    <div>
+                        <strong class="d-block mb-1">📥 Importar</strong>
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="window.triggerImport()">
+                            <i class="fas fa-upload me-2"></i>Restaurar de backup (JSON)
+                        </button>
+                        <small class="text-muted d-block mt-1">Carrega um backup exportado anteriormente.</small>
+                    </div>
+                    <div class="mt-auto">
+                        <strong class="d-block mb-1 text-danger">🗑️ Limpar Tudo</strong>
+                        <button type="button" class="btn w-100 btn-outline-secondary text-danger" id="resetTotalBtn"
+                                style="border-color:var(--rose)">
+                            <i class="fas fa-rotate-left me-2"></i>Restaurar Estado Inicial
+                        </button>
+                        <small class="text-muted d-block mt-1">Apaga TODAS as seleções e configurações. Irreversível.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mt-4 mb-5">
+    <a href="/" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Voltar</a>
+    <a href="/generate" class="btn btn-primary"><i class="fas fa-bolt me-2"></i>Ir para Geração</a>
+</div>
+
+
+<!-- MODAL: Professor (3 colunas Internas/Externas/Cedidas) -->
+<div class="modal fade" id="profModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-user-tie text-primary me-2"></i><span id="profModalNome">Professor</span></h5>
+                <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="restaurarProfBtn">
+                    <i class="fas fa-rotate-left me-1"></i>Restaurar
+                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="section-title">Carga horária máxima semanal</p>
+                <div class="input-group mb-4" style="max-width:240px">
+                    <input type="number" class="form-control" id="profModalCarga" min="1" max="40" value="20">
+                    <span class="input-group-text">h/sem</span>
+                </div>
+
+                <p class="section-title">Disciplinas que pode lecionar</p>
+                <!-- 3 COLUNAS dinâmicas — refletem tipo salvo nas configs -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card h-100"><div class="card-header py-2 d-flex align-items-center justify-content-between" style="border-left:3px solid var(--primary)">
+                            <strong style="font-size:.85rem"><i class="fas fa-building me-1 text-primary"></i>Internas</strong>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-xs btn-outline-secondary col-sel-all" data-tipo="interna"><i class="fas fa-check-double"></i></button>
+                                <button class="btn btn-xs btn-outline-secondary col-sel-none" data-tipo="interna"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <div class="scrollable" style="max-height:220px;border:none">
+                            <div class="list-group list-group-flush" id="col-internas"></div>
+                        </div></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100"><div class="card-header py-2 d-flex align-items-center justify-content-between" style="border-left:3px solid var(--lilac)">
+                            <strong style="font-size:.85rem"><i class="fas fa-external-link-alt me-1" style="color:var(--lilac)"></i>Externas</strong>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-xs btn-outline-secondary col-sel-all" data-tipo="externa"><i class="fas fa-check-double"></i></button>
+                                <button class="btn btn-xs btn-outline-secondary col-sel-none" data-tipo="externa"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <div class="scrollable" style="max-height:220px;border:none">
+                            <div class="list-group list-group-flush" id="col-externas"></div>
+                        </div></div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100"><div class="card-header py-2 d-flex align-items-center justify-content-between" style="border-left:3px solid var(--teal)">
+                            <strong style="font-size:.85rem"><i class="fas fa-handshake me-1" style="color:var(--teal)"></i>Cedidas</strong>
+                            <div class="d-flex gap-1">
+                                <button class="btn btn-xs btn-outline-secondary col-sel-all" data-tipo="cedida"><i class="fas fa-check-double"></i></button>
+                                <button class="btn btn-xs btn-outline-secondary col-sel-none" data-tipo="cedida"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                        <div class="scrollable" style="max-height:220px;border:none">
+                            <div class="list-group list-group-flush" id="col-cedidas"></div>
+                        </div></div>
+                    </div>
+                </div>
+
+                <p class="section-title">Disponibilidade — marque onde NÃO pode dar aula</p>
+                <div class="table-responsive">
+                    <table class="table table-bordered mb-0" style="font-size:.78rem">
+                        <thead><tr><th style="min-width:90px">Horário</th>{% for dia in dias %}<th class="text-center">{{ dia }}</th>{% endfor %}</tr></thead>
+                        <tbody id="profModalDisponibilidade">
+                        {% for hora in horarios %}
+                        {% if loop.index0 == 4 %}<tr><td class="text-muted mono">12:00-14:00</td>{% for dia in dias %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.7rem">almoço</td>{% endfor %}</tr>{% endif %}
+                        <tr><td class="text-muted mono">{{ hora }}</td>
+                        {% for dia in dias %}<td class="slot-cell text-center slot-livre prof-disp-cell" data-dia="{{ dia }}" data-hora="{{ hora }}" data-state="disponivel">—</td>{% endfor %}
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <small class="text-muted d-block mt-1"><span class="chip chip-danger me-1">Indisponível</span> Clique para marcar.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="profModalSalvar"><i class="fas fa-check me-1"></i>Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Confirmação de reset seguro -->
+<div class="modal fade" id="resetConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:2px solid var(--rose)">
+            <div class="modal-header" style="background:var(--rose);color:white">
+                <h5 class="modal-title"><i class="fas fa-triangle-exclamation me-2"></i>Confirmar Reset</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning"><i class="fas fa-triangle-exclamation me-2"></i>
+                    <strong>Ação IRREVERSÍVEL.</strong><br>
+                    Você vai restaurar <strong id="resetTargetLabel">este item</strong>.
+                </div>
+                <ul id="resetImpactList" class="text-muted mb-3" style="font-size:.85rem"></ul>
+                <label class="form-label fw-bold">Digite <span class="chip mono" style="background:var(--rose);color:white">CONFIRMAR RESET</span>:</label>
+                <input type="text" class="form-control" id="resetConfirmInput" autocomplete="off" placeholder="Digite exatamente">
+                <small class="d-block mt-1" id="resetInputStatus"></small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="resetConfirmBtn" disabled
+                        style="background:var(--rose);border-color:var(--rose)">
+                    <i class="fas fa-rotate-left me-1"></i>Confirmar Reset
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dados para JS -->
+<script>
+var DISCIPLINAS_LIST   = {{ disciplinas | tojson }};
+var CONFIG_DISCIPLINAS = {{ config_disciplinas | tojson }};  // Estado inicial do servidor
+var CONFIG_PROFESSORES = {{ config_professores | tojson }};
+var PROFESSORES_LIST   = {{ professores | tojson }};
+
+// Buffer em memória — sincronizado sempre que "Salvar Disciplinas" é clicado
+// Isso garante que a aba de professores reflita o tipo atual sem navegação
+var discConfigBuffer = JSON.parse(JSON.stringify(CONFIG_DISCIPLINAS));
+var profConfigBuffer = JSON.parse(JSON.stringify(CONFIG_PROFESSORES));
+</script>
+
+<style>
+.semestre-group { margin-bottom: .5rem; }
+.semestre-header { background:var(--card2); padding:.4rem .75rem; font-size:.75rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--primary);
+    border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.semestre-group:first-child .semestre-header { border-top:none; }
+.btn-xs { font-size:.65rem; padding:.15rem .4rem; line-height:1; }
+.card-col-disc .list-group-item { font-size:.8rem; padding:.45rem .7rem; }
+#resetConfirmInput.match { border-color:var(--rose); box-shadow:0 0 0 .2rem rgba(224,80,134,.15); }
+</style>
+
+<script>
+// ── Abas ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-link[data-tab]').forEach(function(l){
+    l.addEventListener('click',function(e){
+        e.preventDefault();
+        document.querySelectorAll('.nav-link[data-tab]').forEach(function(x){x.classList.remove('active');});
+        this.classList.add('active');
+        document.querySelectorAll('.tab-pane').forEach(function(p){p.style.display='none';});
+        var t=document.getElementById('tab-'+this.getAttribute('data-tab'));
+        if(t) t.style.display='';
+    });
+});
+
+// ── Slots de disciplina ────────────────────────────────────────────────────
+function atualizarContadores(idx){
+    var card=document.getElementById('card-disc-'+idx); if(!card) return;
+    card.querySelector('.n-fixacoes').textContent  = card.querySelectorAll('.slot-fixo').length;
+    card.querySelector('.n-restricoes').textContent= card.querySelectorAll('.slot-restrito').length;
+}
+
+document.querySelectorAll('.slot-cell[data-idx]').forEach(function(cell){
+    cell.addEventListener('click',function(){
+        var state=this.getAttribute('data-state');
+        var dia=this.getAttribute('data-dia'), hora=this.getAttribute('data-hora');
+        var idx=parseInt(this.getAttribute('data-idx'),10);
+        var ns,tipo,lbl;
+        if(state==='livre'){ns='fixo';tipo='fixar';lbl='🔒 Fixa';}
+        else if(state==='fixo'){ns='restrito';tipo='restringir';lbl='🚫';}
+        else{ns='livre';tipo='limpar';lbl='—';}
+        var self=this;
+        fetch('/salvar_fixacao',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({idx:idx,dia:dia,hora:hora,tipo:tipo})})
+        .then(function(r){return r.json();}).then(function(d){
+            if(d.status==='ok'){
+                self.setAttribute('data-state',ns);
+                self.classList.remove('slot-livre','slot-fixo','slot-restrito');
+                self.classList.add('slot-'+ns); self.textContent=lbl;
+                atualizarContadores(idx); showAutoSave();
+            }else{ alert('⚠️ '+(d.mensagem||'Operação inválida')); }
+        }).catch(function(){alert('❌ Erro de rede');});
+    });
+});
+
+// ── Remover disciplina da configuração ────────────────────────────────────
+document.querySelectorAll('.remover-disc').forEach(function(btn){
+    btn.addEventListener('click',function(){
+        var idx=parseInt(this.getAttribute('data-idx'),10);
+        var nome=this.getAttribute('data-nome');
+        if(!confirm('⚠️ Remover "'+nome+'" da seleção?\n\nIsso também apaga suas configurações. Continue?')) return;
+        fetch('/remover_disciplina_config',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({idx:idx})})
+        .then(function(r){return r.json();}).then(function(d){
+            if(d.status==='ok') location.reload();
+            else alert('Erro: '+d.mensagem);
+        });
+    });
+});
+
+// ── Salvar TODAS disciplinas + SINCRONIZAR buffer com prof modal ───────────
+var btnSD=document.getElementById('salvarTodasDiscBtn');
+if(btnSD){ btnSD.addEventListener('click',function(){
+    var configs=[];
+    document.querySelectorAll('.tipo-disciplina').forEach(function(sel){
+        var idx=parseInt(sel.getAttribute('data-idx'),10);
+        var tipo=sel.value;
+        var nas=document.querySelector('.aulas-semanais[data-idx="'+idx+'"]').value;
+        var nso=document.querySelector('.semestre-oferta[data-idx="'+idx+'"]').value;
+        configs.push({idx:idx,tipo:tipo,aulas_semanais:nas,semestre_oferta:nso});
+        // SINCRONIZAÇÃO IMEDIATA: atualizar buffer de tipos
+        if(discConfigBuffer[idx]) discConfigBuffer[idx].tipo=tipo;
+    });
+    btnSD.disabled=true; btnSD.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
+    fetch('/salvar_todas_disciplinas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:configs})})
+    .then(function(r){return r.json();}).then(function(){
+        btnSD.disabled=false; btnSD.innerHTML='<i class="fas fa-save me-2"></i>Salvar';
+        var fb=document.getElementById('salvarDiscFeedback'); fb.style.display='';
+        showAutoSave(); setTimeout(function(){fb.style.display='none';},2500);
+    }).catch(function(){
+        btnSD.disabled=false; btnSD.innerHTML='<i class="fas fa-save me-2"></i>Salvar';
+        alert('❌ Erro ao salvar');
+    });
+});}
+
+// ── Modal de Reset Seguro ─────────────────────────────────────────────────
+var rmCtx={type:null,idx:null,onSuccess:null};
+function abrirReset(type,idx,label,onSuccess){
+    rmCtx={type:type,idx:idx,onSuccess:onSuccess||function(){}};
+    document.getElementById('resetTargetLabel').textContent=label;
+    var il=document.getElementById('resetImpactList');
+    il.innerHTML = type==='professor'
+        ? '<li>Disciplinas atribuídas</li><li>Indisponibilidades</li><li>Carga (volta a 20h/sem)</li>'
+        : '<li>Horários fixos</li><li>Horários bloqueados</li><li>Tipo (volta a "interna")</li>';
+    var inp=document.getElementById('resetConfirmInput'); inp.value=''; inp.classList.remove('match');
+    document.getElementById('resetConfirmBtn').disabled=true;
+    document.getElementById('resetInputStatus').textContent='';
+    new bootstrap.Modal(document.getElementById('resetConfirmModal')).show();
+    setTimeout(function(){inp.focus();},300);
+}
+document.getElementById('resetConfirmInput').addEventListener('input',function(){
+    var ok=this.value==='CONFIRMAR RESET';
+    document.getElementById('resetConfirmBtn').disabled=!ok;
+    this.classList.toggle('match',ok);
+    document.getElementById('resetInputStatus').innerHTML= ok?'<i class="fas fa-check text-success me-1"></i>Texto correto':'';
+});
+document.getElementById('resetConfirmBtn').addEventListener('click',function(){
+    var url=rmCtx.type==='professor'?'/resetar_professor':'/resetar_disciplina';
+    var btn=this; btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>...';
+    fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:rmCtx.idx})})
+    .then(function(r){return r.json();}).then(function(d){
+        btn.disabled=false; btn.innerHTML='<i class="fas fa-rotate-left me-1"></i>Confirmar Reset';
+        if(d.status==='ok'){
+            bootstrap.Modal.getInstance(document.getElementById('resetConfirmModal')).hide();
+            showAutoSave(); if(rmCtx.onSuccess) rmCtx.onSuccess();
+        }else{alert('Erro: '+d.mensagem);}
+    });
+});
+
+document.querySelectorAll('.restaurar-disc').forEach(function(btn){
+    btn.addEventListener('click',function(){
+        abrirReset('disciplina',parseInt(this.getAttribute('data-idx'),10),
+                   'a disciplina "'+this.getAttribute('data-nome')+'"',
+                   function(){location.reload();});
+    });
+});
+
+// ── Modal Professor ────────────────────────────────────────────────────────
+var profModalAtual={idx:null};
+
+function renderColProf(tipo,cid,marcadas){
+    var c=document.getElementById(cid); if(!c) return; c.innerHTML='';
+    var ms=(marcadas||[]).map(String); var found=false;
+    DISCIPLINAS_LIST.forEach(function(d,di){
+        // Usar discConfigBuffer (sincronizado) para tipo
+        var tp=(discConfigBuffer[di]||{}).tipo||'interna';
+        if(tp!==tipo) return; found=true;
+        var lbl=document.createElement('label');
+        lbl.className='list-group-item d-flex align-items-center gap-2 py-2'; lbl.style.cursor='pointer';
+        lbl.innerHTML='<input type="checkbox" class="form-check-input prof-modal-disc" data-tipo="'+tipo+'" value="'+di+'" '+(ms.indexOf(String(di))!==-1?'checked':'')+'>'
+                     +'<span style="font-size:.8rem">'+d.nome+' <small class="text-muted">('+((discConfigBuffer[di]||{}).tipo||'interna')+')</small></span>';
+        c.appendChild(lbl);
+    });
+    if(!found) c.innerHTML='<div class="empty-state py-3"><small>Nenhuma '+tipo+'</small></div>';
+}
+
+function abrirProfModal(idx){
+    var prof=PROFESSORES_LIST[idx]||{}; var cfg=profConfigBuffer[idx]||{disciplinas_internas:[],carga_maxima:20,disponibilidade:[]};
+    profModalAtual.idx=idx;
+    document.getElementById('profModalNome').textContent=prof.nome||'Professor';
+    document.getElementById('profModalCarga').value=cfg.carga_maxima||20;
+    renderColProf('interna','col-internas',cfg.disciplinas_internas);
+    renderColProf('externa','col-externas',cfg.disciplinas_internas);
+    renderColProf('cedida','col-cedidas',cfg.disciplinas_internas);
+    document.querySelectorAll('#profModalDisponibilidade .prof-disp-cell').forEach(function(c){
+        c.classList.remove('slot-restrito'); c.classList.add('slot-livre'); c.setAttribute('data-state','disponivel'); c.textContent='—';
+    });
+    (cfg.disponibilidade||[]).forEach(function(sl){
+        var c=document.querySelector('#profModalDisponibilidade .prof-disp-cell[data-dia="'+sl[0]+'"][data-hora="'+sl[1]+'"]');
+        if(c){c.classList.remove('slot-livre');c.classList.add('slot-restrito');c.setAttribute('data-state','indisponivel');c.textContent='🚫';}
+    });
+    new bootstrap.Modal(document.getElementById('profModal')).show();
+}
+
+document.querySelectorAll('.prof-card').forEach(function(c){
+    c.addEventListener('click',function(){abrirProfModal(parseInt(this.getAttribute('data-prof-idx'),10));});
+});
+
+// Selecionar/desmarcar coluna
+document.querySelectorAll('.col-sel-all').forEach(function(b){
+    b.addEventListener('click',function(){var t=this.getAttribute('data-tipo'); document.querySelectorAll('.prof-modal-disc[data-tipo="'+t+'"]').forEach(function(c){c.checked=true;});});
+});
+document.querySelectorAll('.col-sel-none').forEach(function(b){
+    b.addEventListener('click',function(){var t=this.getAttribute('data-tipo'); document.querySelectorAll('.prof-modal-disc[data-tipo="'+t+'"]').forEach(function(c){c.checked=false;});});
+});
+
+// Disponibilidade
+document.querySelectorAll('#profModalDisponibilidade .prof-disp-cell').forEach(function(c){
+    c.addEventListener('click',function(){
+        var s=this.getAttribute('data-state');
+        if(s==='disponivel'){this.setAttribute('data-state','indisponivel');this.classList.remove('slot-livre');this.classList.add('slot-restrito');this.textContent='🚫';}
+        else{this.setAttribute('data-state','disponivel');this.classList.remove('slot-restrito');this.classList.add('slot-livre');this.textContent='—';}
+    });
+});
+
+// Confirmar → salva no buffer
+document.getElementById('profModalSalvar').addEventListener('click',function(){
+    if(profModalAtual.idx===null) return; var idx=profModalAtual.idx;
+    var discs=[]; document.querySelectorAll('.prof-modal-disc:checked').forEach(function(c){discs.push(c.value);});
+    var disp=[]; document.querySelectorAll('#profModalDisponibilidade .prof-disp-cell').forEach(function(c){
+        if(c.getAttribute('data-state')==='indisponivel') disp.push([c.getAttribute('data-dia'),c.getAttribute('data-hora')]);
+    });
+    var carga=parseInt(document.getElementById('profModalCarga').value,10)||20;
+    profConfigBuffer[idx]={disciplinas_internas:discs,carga_maxima:carga,disponibilidade:disp};
+    var nd=document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
+    var nc=document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
+    if(nd) nd.textContent=discs.length; if(nc) nc.textContent=carga;
+    bootstrap.Modal.getInstance(document.getElementById('profModal')).hide();
+});
+
+// Restaurar professor
+document.getElementById('restaurarProfBtn').addEventListener('click',function(){
+    if(profModalAtual.idx===null) return; var idx=profModalAtual.idx;
+    var prof=PROFESSORES_LIST[idx]||{};
+    var cur=bootstrap.Modal.getInstance(document.getElementById('profModal')); if(cur) cur.hide();
+    setTimeout(function(){
+        abrirReset('professor',idx,'o professor "'+(prof.nome||'?')+'"',function(){
+            profConfigBuffer[idx]={disciplinas_internas:[],carga_maxima:20,disponibilidade:[]};
+            var nd=document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
+            var nc=document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
+            if(nd) nd.textContent='0'; if(nc) nc.textContent='20';
+            setTimeout(function(){abrirProfModal(idx);},300);
+        });
+    },300);
+});
+
+// Salvar TODOS professores
+var btnSP=document.getElementById('salvarTodosProfBtn');
+if(btnSP){ btnSP.addEventListener('click',function(){
+    var cfgs=profConfigBuffer.map(function(c,i){return{idx:i,disciplinas_internas:c.disciplinas_internas||[],carga_maxima:parseInt(c.carga_maxima,10)||20,disponibilidade:c.disponibilidade||[]};});
+    btnSP.disabled=true; btnSP.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
+    fetch('/salvar_todas_professores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:cfgs})})
+    .then(function(r){return r.json();}).then(function(){
+        btnSP.disabled=false; btnSP.innerHTML='<i class="fas fa-save me-2"></i>Salvar';
+        var fb=document.getElementById('salvarProfFeedback'); fb.style.display='';
+        showAutoSave(); setTimeout(function(){fb.style.display='none';},2500);
+    }).catch(function(){
+        btnSP.disabled=false; btnSP.innerHTML='<i class="fas fa-save me-2"></i>Salvar';
+        alert('❌ Erro');
+    });
+});}
+
+// ── Conflitos ─────────────────────────────────────────────────────────────
+function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function atualizarContConflitos(){
+    var n=document.querySelectorAll('.grupo-item').length;
+    document.getElementById('conflitos-count').textContent=n;
+    var l=document.getElementById('totalGruposLabel'); if(l) l.textContent=n+' grupo'+(n===1?'':'s');
+    var e=document.getElementById('empty-grupos'); if(e) e.style.display=n===0?'':'none';
+}
+function reindexGrupos(){document.querySelectorAll('.grupo-item').forEach(function(el,i){
+    el.setAttribute('data-idx',i); var b=el.querySelector('.remove-grupo'); if(b) b.setAttribute('data-idx',i);
+});}
+function bindRemover(){
+    document.querySelectorAll('.remove-grupo').forEach(function(btn){
+        if(btn.dataset.bound) return; btn.dataset.bound='1';
+        btn.addEventListener('click',function(){
+            var idx=parseInt(this.getAttribute('data-idx'),10);
+            if(!confirm('Remover este grupo?')) return;
+            fetch('/remover_grupo_choque',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:idx})})
+            .then(function(r){return r.json();}).then(function(){
+                var el=document.querySelector('.grupo-item[data-idx="'+idx+'"]'); if(el) el.remove();
+                reindexGrupos(); atualizarContConflitos(); showAutoSave();
+            });
+        });
+    });
+}
+bindRemover();
+
+var btnAG=document.getElementById('adicionarGrupoBtn');
+if(btnAG){ btnAG.addEventListener('click',function(){
+    var ni=document.getElementById('novoGrupoNome'); var nome=ni.value.trim();
+    var discs=[]; document.querySelectorAll('.grupo-disc-check:checked').forEach(function(c){discs.push(c.value);});
+    if(!nome){alert('⚠️ Digite o nome');return;} if(discs.length<2){alert('⚠️ Selecione ≥2 disciplinas');return;}
+    btnAG.disabled=true; btnAG.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>...';
+    fetch('/adicionar_grupo_choque',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome:nome,disciplinas:discs})})
+    .then(function(r){return r.json();}).then(function(d){
+        btnAG.disabled=false; btnAG.innerHTML='<i class="fas fa-plus me-1"></i>Adicionar Grupo';
+        if(d.status==='ok'){
+            var lg=document.getElementById('listaGrupos'); var em=document.getElementById('empty-grupos');
+            var n=document.querySelectorAll('.grupo-item').length;
+            var html='<div class="alert alert-light border mb-2 d-flex justify-content-between grupo-item" data-idx="'+n+'">'
+                +'<div><strong>'+escH(nome)+'</strong><div class="mt-1">'+discs.map(function(x){return'<span class="chip chip-danger me-1">'+escH(x)+'</span>';}).join('')+'</div></div>'
+                +'<button class="btn btn-sm text-danger border-0 remove-grupo" data-idx="'+n+'"><i class="fas fa-trash"></i></button></div>';
+            if(em) em.insertAdjacentHTML('beforebegin',html); else lg.insertAdjacentHTML('beforeend',html);
+            bindRemover(); atualizarContConflitos(); ni.value='';
+            document.querySelectorAll('.grupo-disc-check:checked').forEach(function(c){c.checked=false;});
+            showAutoSave();
+        }else if(d.codigo==='nome_duplicado'){alert('⚠️ '+d.mensagem);ni.focus();ni.select();}
+        else{alert('Erro: '+(d.mensagem||'desconhecido'));}
+    });
+});}
+
+var btnLC=document.getElementById('limparTodosConflitosBtn');
+if(btnLC){ btnLC.addEventListener('click',function(){
+    var n=document.querySelectorAll('.grupo-item').length;
+    if(n===0){alert('Não há conflitos.');return;}
+    if(!confirm('⚠️ Remover TODOS os '+n+' grupo(s)?')) return;
+    fetch('/limpar_todos_conflitos',{method:'POST'}).then(function(r){return r.json();}).then(function(){
+        document.querySelectorAll('.grupo-item').forEach(function(el){el.remove();}); atualizarContConflitos(); showAutoSave();
+    });
+});}
+
+// ── Avançadas ─────────────────────────────────────────────────────────────
+var btnAv=document.getElementById('salvarAvancadas');
+if(btnAv){ btnAv.addEventListener('click',function(){
+    var d={estado_sabado:document.getElementById('estadoSabado').value, quebrar_blocos:document.getElementById('quebrarBlocos').value};
+    btnAv.disabled=true; btnAv.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Salvando...';
+    fetch('/salvar_config_avancadas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
+    .then(function(){
+        btnAv.disabled=false; btnAv.innerHTML='<i class="fas fa-save me-1"></i>Salvar Parâmetros';
+        var fb=document.getElementById('avancadasFeedback'); fb.style.display='';
+        showAutoSave(); setTimeout(function(){fb.style.display='none';},2000);
+    });
+});}
+
+// ── Reset Total ───────────────────────────────────────────────────────────
+var btnRT=document.getElementById('resetTotalBtn');
+if(btnRT){ btnRT.addEventListener('click',function(){
+    if(!confirm('⚠️ Apagar TODAS as seleções e configurações?\n\nIsto é IRREVERSÍVEL.')) return;
+    if(!confirm('Tem certeza? Última chance.')) return;
+    fetch('/reset',{method:'POST'}).then(function(){localStorage.removeItem('tema'); location.href='/';});
+});}
+</script>
+{% endblock %}

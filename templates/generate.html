@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div><h2><i class="fas fa-bolt text-primary me-2"></i>Geração de Grade</h2>
+    <p>CSP Solver: blocos 2/3 · cascata de níveis · distribuição inteligente</p></div>
+    <div class="steps">
+        <a href="/" class="step done"><span class="counter me-1">✓</span>Seleção</a>
+        <a href="/config" class="step done"><span class="counter me-1">✓</span>Configuração</a>
+        <span class="step active"><span class="counter me-1">3</span>Geração</span>
+    </div>
+</div>
+
+<!-- Overlay de carregamento -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-border" role="status" aria-hidden="true"></div>
+    <p>CSP Solver em execução...</p>
+    <ul style="list-style:none;padding:0;font-size:.85rem;color:#ddd;text-align:left;min-width:320px;margin-top:.5rem">
+        <li id="s1" class="step-loading">⏳ Validando hard constraints</li>
+        <li id="s2" class="step-loading">⏳ Decompondo em blocos 2/3</li>
+        <li id="s3" class="step-loading">⏳ Cascata Nível 1→2→3</li>
+        <li id="s4" class="step-loading">⏳ Multi-restart + scoring</li>
+        <li id="s5" class="step-loading">⏳ Atribuindo professores</li>
+    </ul>
+</div>
+
+<!-- Barra de ações -->
+<div class="card mb-4">
+    <div class="card-body d-flex align-items-center gap-2 flex-wrap">
+        <button id="gerarGradeBtn" class="btn btn-primary btn-lg">
+            <i class="fas fa-magic me-2"></i>{% if show_results %}Regerar{% else %}Gerar Grade{% endif %}
+        </button>
+        {% if show_results %}
+        <div class="vr mx-1 d-none d-md-block" style="opacity:.2"></div>
+        <button id="imprimirBtn" class="btn btn-outline-secondary" title="Imprimir">
+            <i class="fas fa-print me-1"></i>Imprimir
+        </button>
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-download me-1"></i>Baixar
+            </button>
+            <ul class="dropdown-menu shadow border-0" style="min-width:260px">
+                <li><a class="dropdown-item" href="/download/semestre"><i class="fas fa-graduation-cap me-2 text-primary"></i>Grade por Semestre</a></li>
+                <li><a class="dropdown-item" href="/download/disciplinas"><i class="fas fa-table me-2 text-primary"></i>Grade Combinada</a></li>
+                <li><a class="dropdown-item" href="/download/professores"><i class="fas fa-chalkboard-user me-2 text-success"></i>Grade com Professores</a></li>
+                <li><a class="dropdown-item" href="/download/por_professor"><i class="fas fa-user-clock me-2 text-warning"></i>Grade por Professor</a></li>
+            </ul>
+        </div>
+        {% endif %}
+        <a href="/config" class="btn btn-outline-secondary ms-auto"><i class="fas fa-arrow-left me-1"></i>Config</a>
+    </div>
+</div>
+
+<div id="erroMsg" class="alert alert-danger" style="display:none" role="alert"></div>
+
+{% if show_results and relatorio %}
+{% if relatorio.avisos %}
+<div class="alert alert-warning">
+    <strong><i class="fas fa-exclamation-triangle me-2"></i>Avisos:</strong>
+    <ul class="mb-0 mt-1" style="font-size:.85rem">
+        {% for a in relatorio.avisos %}<li>{{ a }}</li>{% endfor %}
+    </ul>
+</div>{% endif %}
+{% if relatorio.niveis %}
+<div class="alert alert-info mb-3" style="font-size:.82rem">
+    <strong><i class="fas fa-layer-group me-2"></i>Níveis usados pelo solver:</strong>
+    <div class="mt-2 d-flex flex-wrap gap-1">
+        {% for disc, nv in relatorio.niveis.items() %}
+        {% if nv and nv > 1 %}
+        <span class="chip {% if nv == 2 %}chip-warning{% else %}chip-danger{% endif %}">
+            {{ disc }}: Nível {{ nv }}
+        </span>
+        {% endif %}{% endfor %}
+        {% set tem_nivel_alto = namespace(v=false) %}
+        {% for nv in relatorio.niveis.values() %}{% if nv and nv > 1 %}{% set tem_nivel_alto.v = true %}{% endif %}{% endfor %}
+        {% if not tem_nivel_alto.v %}<span class="chip chip-success">Todas alocadas no Nível 1 🎉</span>{% endif %}
+    </div>
+</div>{% endif %}
+{% if relatorio.disciplinas_sem_professor %}
+<div class="alert alert-warning">
+    <strong><i class="fas fa-user-slash me-2"></i>Sem professor:</strong>
+    {% for d in relatorio.disciplinas_sem_professor %}<span class="chip chip-danger me-1">{{ d }}</span>{% endfor %}
+    <small class="d-block mt-1"><a href="/config" class="alert-link">Configure em Professores →</a></small>
+</div>{% endif %}
+{% endif %}
+
+{% if show_results and grade_disciplinas %}
+
+{% set n_slots = namespace(n=0) %}
+{% for d,slots in grade_disciplinas.items() %}{% for h,c in slots.items() %}{% if c != '—' %}{% set n_slots.n = n_slots.n + 1 %}{% endif %}{% endfor %}{% endfor %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3"><div class="card text-center py-3">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--primary)">{{ n_slots.n }}</div>
+        <div class="text-muted" style="font-size:.8rem">Slots preenchidos</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="card text-center py-3">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--success)">{{ grade_por_semestre|length }}</div>
+        <div class="text-muted" style="font-size:.8rem">Grupos (curso × sem)</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="card text-center py-3">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--accent-lilac)">{{ grade_por_professor.keys()|list|length }}</div>
+        <div class="text-muted" style="font-size:.8rem">Professores</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="card text-center py-3">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--warning)">{{ relatorio.score if relatorio.score is defined else '—' }}</div>
+        <div class="text-muted" style="font-size:.8rem">Score CSP</div>
+    </div></div>
+</div>
+
+<ul class="nav nav-tabs mb-3" id="resultTabs">
+    <li class="nav-item"><a class="nav-link active" href="#" data-rt="por-semestre"><i class="fas fa-graduation-cap me-1"></i>Por Semestre</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-rt="grade-disc"><i class="fas fa-calendar-week me-1"></i>Combinada</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-rt="grade-prof"><i class="fas fa-chalkboard-user me-1"></i>Com Professores</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-rt="horarios-prof"><i class="fas fa-user-clock me-1"></i>Por Professor</a></li>
+</ul>
+
+<!-- ABA: Por Semestre — "Nº SEMESTRE - CURSO" -->
+<div id="result-por-semestre" class="result-pane">
+{% if grade_por_semestre %}
+    {% set gks = [] %}
+    {% for gk in grade_por_semestre.keys() %}
+        {% set p = gk.split('|') %}
+        {% set c2 = p[0] if p|length >= 1 else 'Geral' %}
+        {% set s2 = p[1]|int if p|length >= 2 else 0 %}
+        {% if gks.append((c2,s2,gk)) %}{% endif %}
+    {% endfor %}
+    {% for curso,sem,gk in gks|sort %}
+    {% set gs = grade_por_semestre[gk] %}
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span><i class="fas fa-graduation-cap me-2 text-primary"></i>
+            <strong>{{ sem }}º SEMESTRE - {{ curso }}</strong></span>
+            <small class="text-muted">Grade independente</small>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered grade-table mb-0">
+                    <thead><tr><th style="min-width:100px">Horário</th>{% for dia in gs.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for hora in horarios %}
+                    {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in gs.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
+                    <tr><td class="mono fw-semibold" style="font-size:.78rem;color:var(--text-muted)">{{ hora }}</td>
+                    {% for dia in gs.keys() %}{% set c = gs[dia][hora] %}
+                    <td class="{% if c != '—' %}slot-filled{% else %}slot-empty{% endif %}">
+                        {% if c != '—' %}<span style="font-size:.73rem">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
+                    </td>{% endfor %}</tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>Gere a grade novamente.</div>
+{% endif %}
+</div>
+
+<!-- ABA: Combinada -->
+<div id="result-grade-disc" class="result-pane" style="display:none">
+    <div class="card">
+        <div class="card-header"><i class="fas fa-calendar-week me-2"></i>Grade Combinada</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered grade-table mb-0">
+                    <thead><tr><th style="min-width:100px">Horário</th>{% for dia in grade_disciplinas.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for hora in horarios %}
+                    {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in grade_disciplinas.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
+                    <tr><td class="mono fw-semibold" style="font-size:.78rem;color:var(--text-muted)">{{ hora }}</td>
+                    {% for dia in grade_disciplinas.keys() %}{% set c=grade_disciplinas[dia][hora] %}
+                    <td class="grade-cell {% if c!='—' %}slot-filled{% else %}slot-empty{% endif %}" data-dia="{{ dia }}" data-hora="{{ hora }}" data-conteudo="{{ c }}">
+                        {% if c!='—' %}<span class="grade-cell-text">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
+                    </td>{% endfor %}</tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ABA: Com Professores -->
+<div id="result-grade-prof" class="result-pane" style="display:none">
+    <div class="card">
+        <div class="card-header"><i class="fas fa-chalkboard-user me-2"></i>Grade com Professores</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered grade-table mb-0">
+                    <thead><tr><th style="min-width:100px">Horário</th>{% for dia in grade_professores.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for hora in horarios %}
+                    {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in grade_professores.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
+                    <tr><td class="mono fw-semibold" style="font-size:.78rem;color:var(--text-muted)">{{ hora }}</td>
+                    {% for dia in grade_professores.keys() %}{% set c=grade_professores[dia][hora] %}
+                    <td class="{% if c!='—' %}slot-filled{% else %}slot-empty{% endif %}">
+                        {% if c!='—' %}<span style="font-size:.72rem;white-space:pre-line">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
+                    </td>{% endfor %}</tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ABA: Por Professor — GRADE (linhas=horários, colunas=dias) -->
+<div id="result-horarios-prof" class="result-pane" style="display:none">
+{% set tem = namespace(ok=false) %}
+{% for prof, lista in horarios_professores.items() %}{% if lista %}{% set tem.ok = true %}{% endif %}{% endfor %}
+
+{% if not tem.ok %}
+<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>
+Nenhum professor atribuído. <a href="/config" class="alert-link">Configure em Professores →</a></div>
+{% else %}
+
+<!-- Seletor de professor -->
+<div class="mb-3 d-flex align-items-center gap-2">
+    <label class="form-label mb-0 fw-bold">Ver professor:</label>
+    <select id="profSelect" class="form-select form-select-sm" style="max-width:300px">
+        {% for prof, grade_p in grade_por_professor.items() %}
+        {% if horarios_professores.get(prof) %}
+        <option value="{{ prof }}">{{ prof }}</option>
+        {% endif %}{% endfor %}
+    </select>
+</div>
+
+{% for prof, grade_p in grade_por_professor.items() %}
+{% if horarios_professores.get(prof) %}
+<div class="prof-grade-panel" id="pgp-{{ loop.index0 }}" data-prof="{{ prof }}" style="{% if not loop.first %}display:none{% endif %}">
+    <div class="card">
+        <div class="card-header d-flex align-items-center gap-2">
+            <i class="fas fa-user-tie text-primary"></i>
+            <strong>{{ prof }}</strong>
+            <span class="chip ms-auto">{{ horarios_professores.get(prof,[])|length }} aula{{ 's' if horarios_professores.get(prof,[])|length != 1 }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-bordered grade-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="min-width:100px">Horário</th>
+                            {% for dia in grade_p.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for hora in horarios %}
+                    {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in grade_p.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
+                    <tr>
+                        <td class="mono fw-semibold" style="font-size:.78rem;color:var(--text-muted)">{{ hora }}</td>
+                        {% for dia in grade_p.keys() %}{% set c = grade_p[dia][hora] %}
+                        <td class="{% if c != '—' %}slot-filled{% else %}slot-empty{% endif %}">
+                            {% if c != '—' %}<span style="font-size:.73rem">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
+                        </td>{% endfor %}
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}{% endfor %}
+{% endif %}
+</div>
+
+<!-- Modal célula -->
+<div class="modal fade" id="celulaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h6 class="modal-title" id="cMTitulo"></h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body" id="cMCorpo" style="font-size:.875rem"></div>
+        </div>
+    </div>
+</div>
+
+{% elif not show_results %}
+<div class="card text-center py-5">
+    <div class="empty-state">
+        <i class="fas fa-calendar-plus" style="font-size:3rem;margin-bottom:1rem;opacity:.25"></i>
+        <h5>Nenhuma grade gerada</h5>
+        <p>Clique em <strong>Gerar Grade</strong> para executar o CSP Solver.</p>
+        <div class="mt-3">
+            <a href="/" class="btn btn-outline-secondary btn-sm me-2"><i class="fas fa-arrow-left me-1"></i>Seleção</a>
+            <a href="/config" class="btn btn-outline-secondary btn-sm"><i class="fas fa-sliders me-1"></i>Configurações</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.grade-cell.slot-filled { cursor:pointer; }
+.grade-cell.slot-filled:hover { filter:brightness(.93); }
+.grade-cell-text { font-size:.73rem; line-height:1.4; display:block; }
+.step-loading { opacity:.6; padding:.2rem 0; }
+.step-loading.done { opacity:1; color:var(--success); }
+.step-loading.active { opacity:1; color:#fff; font-weight:600; }
+.vr { width:1px; background:var(--border); }
+@media print {
+    .navbar,.page-header .steps,#resultTabs,.card:has(#gerarGradeBtn) { display:none!important; }
+    #result-por-semestre { display:block!important; }
+    #result-grade-disc,#result-grade-prof,#result-horarios-prof { display:none!important; }
+    body{background:#fff;color:#000;}
+    .card{box-shadow:none;border:1px solid #ddd;page-break-inside:avoid;}
+    .slot-filled{background:#e8f4fd!important;color:#1a4a8a!important;}
+}
+</style>
+
+<script>
+// Abas
+document.querySelectorAll('.nav-link[data-rt]').forEach(function(l){
+    l.addEventListener('click',function(e){
+        e.preventDefault();
+        document.querySelectorAll('.nav-link[data-rt]').forEach(function(x){x.classList.remove('active');});
+        this.classList.add('active');
+        document.querySelectorAll('.result-pane').forEach(function(p){p.style.display='none';});
+        var t=document.getElementById('result-'+this.getAttribute('data-rt')); if(t) t.style.display='';
+    });
+});
+
+// Seletor de professor
+var profSel=document.getElementById('profSelect');
+if(profSel){ profSel.addEventListener('change',function(){
+    var val=this.value;
+    document.querySelectorAll('.prof-grade-panel').forEach(function(p){
+        p.style.display = p.getAttribute('data-prof')===val ? '' : 'none';
+    });
+});}
+
+// Loading steps
+function animarSteps(){
+    var ids=['s1','s2','s3','s4','s5'], delays=[0,350,700,1050,1400];
+    ids.forEach(function(id,i){ setTimeout(function(){
+        var prev=document.querySelector('.step-loading.active');
+        if(prev){prev.classList.remove('active');prev.classList.add('done');
+                  prev.textContent='✓ '+prev.textContent.replace(/^[⏳✓▶]\s*/,'');}
+        var el=document.getElementById(id);
+        if(el){el.classList.add('active');el.textContent='▶ '+el.textContent.replace(/^[⏳✓▶]\s*/,'');}
+    },delays[i]);});
+}
+
+function iniciarGeracao(){
+    var overlay=document.getElementById('loadingOverlay');
+    var btn=document.getElementById('gerarGradeBtn');
+    var err=document.getElementById('erroMsg');
+    document.querySelectorAll('.step-loading').forEach(function(s){
+        s.classList.remove('done','active');
+        s.textContent='⏳ '+s.textContent.replace(/^[⏳✓▶]\s*/,'');
+    });
+    overlay.classList.add('show'); btn.disabled=true; err.style.display='none';
+    animarSteps();
+    fetch('/iniciar_geracao',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+        overlay.classList.remove('show');
+        if(d.status==='sucesso'){ location.href='/resultados'; }
+        else{
+            var msg='❌ '+(d.mensagem||'Erro');
+            if(d.erros&&d.erros.length){msg+='<ul class="mt-2 mb-0">';d.erros.forEach(function(e){msg+='<li>'+e+'</li>';});msg+='</ul>';}
+            err.innerHTML=msg; err.style.display=''; btn.disabled=false;
+        }
+    }).catch(function(){
+        overlay.classList.remove('show'); err.textContent='❌ Erro na requisição.'; err.style.display=''; btn.disabled=false;
+    });
+}
+var bg=document.getElementById('gerarGradeBtn'); if(bg) bg.addEventListener('click',iniciarGeracao);
+
+var bi=document.getElementById('imprimirBtn');
+if(bi){ bi.addEventListener('click',function(){
+    document.querySelectorAll('.result-pane').forEach(function(p){p.style.display='none';});
+    var ps=document.getElementById('result-por-semestre'); if(ps) ps.style.display='';
+    window.print();
+});}
+
+{% if show_results %}
+document.querySelectorAll('.grade-cell.slot-filled').forEach(function(cell){
+    cell.addEventListener('click',function(){
+        var c=this.getAttribute('data-conteudo');
+        document.getElementById('cMTitulo').textContent=this.getAttribute('data-dia')+' · '+this.getAttribute('data-hora');
+        var itens=c.split(' | ');
+        var html='<ul class="list-unstyled mb-0">';
+        itens.forEach(function(item){html+='<li class="mb-1"><i class="fas fa-book text-primary me-2" style="font-size:.75rem"></i>'+item+'</li>';});
+        html+='</ul>'; document.getElementById('cMCorpo').innerHTML=html;
+        new bootstrap.Modal(document.getElementById('celulaModal')).show();
+    });
+});
+{% endif %}
+</script>
+{% endblock %}

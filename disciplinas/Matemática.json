@@ -1,0 +1,57 @@
+[
+    {"nome": "Trigonometria e Números Complexos", "codigo": "-", "carga_horaria": 60, "semestre": 1},
+    {"nome": "Geometria Euclidiana", "codigo": "-", "carga_horaria": 90, "semestre": 1},
+    {"nome": "Inserção à Vida Universitária", "codigo": "-", "carga_horaria": 15, "semestre": 1},
+    {"nome": "Iniciação ao Pensamento Científico", "codigo": "-", "carga_horaria": 45, "semestre": 1},
+    {"nome": "Sociedades, Diferenças e Direitos Humanos nos Espaços Lusófonos", "codigo": "-", "carga_horaria": 60, "semestre": 1},
+    {"nome": "Leitura e Produção de Texto I", "codigo": "-", "carga_horaria": 60, "semestre": 1},
+
+    {"nome": "Lógica, Conjuntos e Funções", "codigo": "-", "carga_horaria": 90, "semestre": 2},
+    {"nome": "Geometria Analítica", "codigo": "-", "carga_horaria": 90, "semestre": 2},
+    {"nome": "Práticas Educativas I", "codigo": "-", "carga_horaria": 45, "semestre": 2},
+    {"nome": "Fundamentos da Educação", "codigo": "-", "carga_horaria": 45, "semestre": 2},
+    {"nome": "Leitura e Produção de Texto II", "codigo": "-", "carga_horaria": 60, "semestre": 2},
+
+    {"nome": "Cálculo Diferencial e Integral I", "codigo": "-", "carga_horaria": 90, "semestre": 3},
+    {"nome": "Análise Combinatória e Probabilidade", "codigo": "-", "carga_horaria": 60, "semestre": 3},
+    {"nome": "Matemática Comercial e Financeira", "codigo": "-", "carga_horaria": 60, "semestre": 3},
+    {"nome": "Educação Ambiental", "codigo": "-", "carga_horaria": 45, "semestre": 3},
+    {"nome": "Práticas Educativas II", "codigo": "-", "carga_horaria": 45, "semestre": 3},
+    {"nome": "Política Educacional e Gestão", "codigo": "-", "carga_horaria": 60, "semestre": 3},
+
+    {"nome": "Cálculo Diferencial e Integral II", "codigo": "-", "carga_horaria": 90, "semestre": 4},
+    {"nome": "Introdução à Estatística", "codigo": "-", "carga_horaria": 60, "semestre": 4},
+    {"nome": "Física Geral I", "codigo": "-", "carga_horaria": 90, "semestre": 4},
+    {"nome": "Práticas Educativas III", "codigo": "-", "carga_horaria": 45, "semestre": 4},
+    {"nome": "Psicologia da Educação", "codigo": "-", "carga_horaria": 60, "semestre": 4},
+
+    {"nome": "Cálculo Diferencial e Integral III", "codigo": "-", "carga_horaria": 90, "semestre": 5},
+    {"nome": "Introdução à Álgebra Linear", "codigo": "-", "carga_horaria": 60, "semestre": 5},
+    {"nome": "Física Geral II", "codigo": "-", "carga_horaria": 90, "semestre": 5},
+    {"nome": "Didática", "codigo": "-", "carga_horaria": 60, "semestre": 5},
+    {"nome": "LIBRAS", "codigo": "-", "carga_horaria": 60, "semestre": 5},
+
+    {"nome": "Álgebra Linear I", "codigo": "-", "carga_horaria": 60, "semestre": 6},
+    {"nome": "Teoria dos Números", "codigo": "-", "carga_horaria": 60, "semestre": 6},
+    {"nome": "Cálculo Numérico", "codigo": "-", "carga_horaria": 60, "semestre": 6},
+    {"nome": "Física Geral III", "codigo": "-", "carga_horaria": 90, "semestre": 6},
+    {"nome": "Estágio Supervisionado I", "codigo": "-", "carga_horaria": 90, "semestre": 6},
+
+    {"nome": "Equações Diferenciais Ordinárias", "codigo": "-", "carga_horaria": 60, "semestre": 7},
+    {"nome": "Estruturas Algébricas I", "codigo": "-", "carga_horaria": 60, "semestre": 7},
+    {"nome": "Geometria Diferencial de Curvas", "codigo": "-", "carga_horaria": 45, "semestre": 7},
+    {"nome": "Física Geral IV", "codigo": "-", "carga_horaria": 60, "semestre": 7},
+    {"nome": "Estágio Supervisionado II", "codigo": "-", "carga_horaria": 90, "semestre": 7},
+
+    {"nome": "Análise na Reta I", "codigo": "-", "carga_horaria": 60, "semestre": 8},
+    {"nome": "Estruturas Algébricas II", "codigo": "-", "carga_horaria": 60, "semestre": 8},
+    {"nome": "Optativa I", "codigo": "-", "carga_horaria": 60, "semestre": 8},
+    {"nome": "TCC I", "codigo": "-", "carga_horaria": 30, "semestre": 8},
+    {"nome": "Estágio Supervisionado III", "codigo": "-", "carga_horaria": 105, "semestre": 8},
+
+    {"nome": "Introdução às Variáveis Complexas", "codigo": "-", "carga_horaria": 60, "semestre": 9},
+    {"nome": "História da Matemática", "codigo": "-", "carga_horaria": 60, "semestre": 9},
+    {"nome": "Optativa II", "codigo": "-", "carga_horaria": 45, "semestre": 9},
+    {"nome": "TCC II", "codigo": "-", "carga_horaria": 30, "semestre": 9},
+    {"nome": "Estágio Supervisionado IV", "codigo": "-", "carga_horaria": 120, "semestre": 9}
+]

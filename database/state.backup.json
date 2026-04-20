@@ -1,0 +1,529 @@
+{
+  "disciplinas_selecionadas": [
+    {
+      "carga_horaria": 90,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Lógica, Conjuntos e Funções",
+      "semestre": 2
+    },
+    {
+      "carga_horaria": 90,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Geometria Analítica",
+      "semestre": 2
+    },
+    {
+      "carga_horaria": 45,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Práticas Educativas I",
+      "semestre": 2
+    },
+    {
+      "carga_horaria": 45,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Fundamentos da Educação",
+      "semestre": 2
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Leitura e Produção de Texto II",
+      "semestre": 2
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Introdução à Estatística",
+      "semestre": 4
+    },
+    {
+      "carga_horaria": 90,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Física Geral I",
+      "semestre": 4
+    },
+    {
+      "carga_horaria": 45,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Práticas Educativas III",
+      "semestre": 4
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Psicologia da Educação",
+      "semestre": 4
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Álgebra Linear I",
+      "semestre": 6
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Teoria dos Números",
+      "semestre": 6
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Cálculo Numérico",
+      "semestre": 6
+    },
+    {
+      "carga_horaria": 90,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Física Geral III",
+      "semestre": 6
+    },
+    {
+      "carga_horaria": 90,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Estágio Supervisionado I",
+      "semestre": 6
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Análise na Reta I",
+      "semestre": 8
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Estruturas Algébricas II",
+      "semestre": 8
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Optativa I",
+      "semestre": 8
+    },
+    {
+      "carga_horaria": 105,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Estágio Supervisionado III",
+      "semestre": 8
+    },
+    {
+      "carga_horaria": 90,
+      "codigo": "CDI1",
+      "curso": "Física",
+      "nome": "Cálculo Diferencial e Integral I",
+      "semestre": 2
+    },
+    {
+      "carga_horaria": 90,
+      "codigo": "CDI2",
+      "curso": "Física",
+      "nome": "Cálculo Diferencial e Integral II",
+      "semestre": 3
+    },
+    {
+      "carga_horaria": 60,
+      "codigo": "CDI3",
+      "curso": "Física",
+      "nome": "Cálculo Diferencial e Integral III",
+      "semestre": 4
+    },
+    {
+      "carga_horaria": 45,
+      "codigo": "IM",
+      "curso": "Biologia",
+      "nome": "Introdução à Matemática",
+      "semestre": 2
+    }
+  ],
+  "professores_selecionados": [
+    {
+      "nome": "Amanda Angélica Feltrin Nunes"
+    },
+    {
+      "nome": "Danila Fernandes Tavares"
+    },
+    {
+      "nome": "João Francisco da Silva Filho"
+    },
+    {
+      "nome": "Joserlan Perote da Silva"
+    },
+    {
+      "nome": "Lucas Siebra Rocha"
+    },
+    {
+      "nome": "Marcelo Dário dos Santos Amaral"
+    },
+    {
+      "nome": "Rafael Jorge Pontes Diógenes"
+    },
+    {
+      "nome": "Tatiana Skoraia"
+    },
+    {
+      "nome": "Weslley Marinho Lozório"
+    }
+  ],
+  "config_disciplinas": [
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 2,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 2,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 3,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 2,
+      "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 3,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 2,
+      "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 2,
+      "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 4,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 4,
+      "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 3,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 4,
+      "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 4,
+      "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 6,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 6,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 6,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 6,
+      "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 6,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 8,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 8,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 8,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 7,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 8,
+      "tipo": "interna"
+    },
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 2,
+      "tipo": "cedida"
+    },
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 3,
+      "tipo": "cedida"
+    },
+    {
+      "aulas_semanais": 4,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 4,
+      "tipo": "cedida"
+    },
+    {
+      "aulas_semanais": 3,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 2,
+      "tipo": "cedida"
+    }
+  ],
+  "config_professores": [
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "0",
+        "1",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "0",
+        "1",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "18",
+        "19",
+        "20",
+        "21"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "0",
+        "1",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "0",
+        "1",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "18",
+        "19",
+        "20",
+        "21"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "0",
+        "1",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "0",
+        "1",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17"
+      ],
+      "disponibilidade": []
+    },
+    {
+      "carga_maxima": 20,
+      "disciplinas_internas": [
+        "0",
+        "1",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21"
+      ],
+      "disponibilidade": []
+    }
+  ],
+  "grupos_choque": [
+    {
+      "disciplinas": [
+        "Geometria Analítica",
+        "Física Geral I"
+      ],
+      "nome": "lucio"
+    },
+    {
+      "disciplinas": [
+        "Fundamentos da Educação",
+        "Leitura e Produção de Texto II",
+        "Introdução à Estatística",
+        "Práticas Educativas III"
+      ],
+      "nome": "cARLOS"
+    }
+  ],
+  "config_avancadas": {
+    "estado_sabado": "desativado",
+    "quebrar_blocos": "flexivel"
+  },
+  "resultado_grade_disciplinas": {},
+  "resultado_grade_professores": {},
+  "resultado_horarios_professores": {},
+  "resultado_grade_por_semestre": {},
+  "resultado_grade_por_professor": {},
+  "resultado_relatorio": {},
+  "tema": "claro"
+}
