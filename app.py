@@ -60,9 +60,19 @@ def _cfg_padrao(d):
 def _cfg_padrao_prof():
     return {'disciplinas_internas':[],'carga_maxima':20,'disponibilidade':[]}
 def _normalizar_avancadas(cfg):
+    """Normaliza config_avancadas: bool→estado_sabado, quebrar_blocos legado→nivel_restricao."""
+    # Compat: usar_sabado bool → estado_sabado string
     if 'usar_sabado' in cfg and 'estado_sabado' not in cfg:
         cfg['estado_sabado'] = 'normal' if cfg.pop('usar_sabado') else 'desativado'
-    cfg.setdefault('estado_sabado','desativado')
+    cfg.setdefault('estado_sabado', 'desativado')
+    # Compat: quebrar_blocos legado → remover e usar nível padrão
+    cfg.pop('quebrar_blocos', None)
+    # Novo parâmetro: nivel_restricao (1, 2 ou 3) — padrão 3 (flexível)
+    nv = cfg.get('nivel_restricao', 3)
+    try: nv = int(nv)
+    except (TypeError, ValueError): nv = 3
+    if nv not in (1, 2, 3): nv = 3
+    cfg['nivel_restricao'] = nv
 
 # ─── Persistência ──────────────────────────────────────────────────────────
 def auto_save():
@@ -111,8 +121,11 @@ def config():
     while len(config_disc) < len(disciplinas): config_disc.append(_cfg_padrao(disciplinas[len(config_disc)]))
     while len(config_prof) < len(professores): config_prof.append(_cfg_padrao_prof())
     grupos_choque = session.get('grupos_choque',[])
-    config_avancadas = session.get('config_avancadas',{'estado_sabado':'desativado','quebrar_blocos':'flexivel'})
+    config_avancadas = session.get('config_avancadas',{'estado_sabado':'desativado','nivel_restricao':3})
     _normalizar_avancadas(config_avancadas)
+    # Persistir migração (remove quebrar_blocos legado, adiciona nivel_restricao)
+    session['config_avancadas'] = config_avancadas
+    session.modified = True
     return render_template('config.html', disciplinas=disciplinas, professores=professores,
                            config_disciplinas=config_disc, config_professores=config_prof,
                            grupos_choque=grupos_choque, config_avancadas=config_avancadas,
@@ -268,6 +281,24 @@ def remover_disciplina_config():
         session.modified=True; auto_save(); return jsonify({'status':'ok'})
     return jsonify({'status':'erro','mensagem':'Índice inválido'})
 
+@app.route('/remover_professor_config', methods=['POST'])
+def remover_professor_config():
+    """Remove professor diretamente na tela de configuração (mesma lógica simétrica)."""
+    data = request.get_json(force=True, silent=True) or {}
+    idx = data.get('idx')
+    if isinstance(idx, str) and idx.isdigit(): idx = int(idx)
+    p = session.get('professores_selecionados', [])
+    c = session.get('config_professores', [])
+    if isinstance(idx, int) and 0 <= idx < len(p):
+        p.pop(idx)
+        if idx < len(c): c.pop(idx)
+        session['professores_selecionados'] = p
+        session['config_professores'] = c
+        session.modified = True
+        auto_save()
+        return jsonify({'status': 'ok'})
+    return jsonify({'status': 'erro', 'mensagem': 'Índice inválido'})
+
 @app.route('/remover_professor', methods=['POST'])
 def remover_professor():
     idx=int(request.form.get('index',-1))
@@ -375,10 +406,19 @@ def salvar_todas_professores():
 
 @app.route('/salvar_config_avancadas', methods=['POST'])
 def salvar_config_avancadas():
-    data=request.get_json(force=True,silent=True) or {}
-    cfg={'estado_sabado':data.get('estado_sabado','desativado'),'quebrar_blocos':data.get('quebrar_blocos','flexivel')}
-    _normalizar_avancadas(cfg); session['config_avancadas']=cfg; session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    data = request.get_json(force=True, silent=True) or {}
+    nv = data.get('nivel_restricao', 3)
+    try: nv = int(nv)
+    except (TypeError, ValueError): nv = 3
+    if nv not in (1, 2, 3): nv = 3
+    cfg = {
+        'estado_sabado':   data.get('estado_sabado', 'desativado'),
+        'nivel_restricao': nv,
+    }
+    _normalizar_avancadas(cfg)
+    session['config_avancadas'] = cfg
+    session.modified = True; auto_save()
+    return jsonify({'status': 'ok'})
 
 # =============================================================================
 # CSP SOLVER — Blocos 2/3 + Cascata de Níveis + Sábado 3 estados
@@ -479,14 +519,20 @@ def _colocar_nivel(uid,cfg,nivel,estado_sabado,dias_v,grade,occ_sem,occ_global,g
         bpd[slots[0][0]]=bpd.get(slots[0][0],0)+1
     return True,pls
 
-def _colocar_cascata(uid,cfg,estado_sabado,grade,occ_sem,occ_global,grupos_choque,u2n):
-    for nivel in [1,2,3]:
-        dias_v=_get_dias_para_nivel(nivel,estado_sabado)
-        ok,pls=_colocar_nivel(uid,cfg,nivel,estado_sabado,dias_v,grade,occ_sem,occ_global,grupos_choque,u2n)
+def _colocar_cascata(uid, cfg, estado_sabado, grade, occ_sem, occ_global, grupos_choque, u2n, nivel_max=3):
+    """Tenta colocar a disciplina do nível 1 até nivel_max. Se nivel_max=1, só tenta rígido."""
+    if nivel_max not in (1, 2, 3): nivel_max = 3
+    niveis_a_tentar = list(range(1, nivel_max + 1))
+    for nivel in niveis_a_tentar:
+        dias_v = _get_dias_para_nivel(nivel, estado_sabado)
+        ok, pls = _colocar_nivel(uid, cfg, nivel, estado_sabado, dias_v, grade, occ_sem, occ_global, grupos_choque, u2n)
         if ok:
-            av=None if nivel==1 else "Nível {}: '{}'.".format(nivel,u2n.get(uid,'?'))
-            return nivel,pls,av
-    return 0,[],"❌ Impossível: '{}'.".format(u2n.get(uid,'?'))
+            av = None if nivel == 1 else "Nível {}: '{}'.".format(nivel, u2n.get(uid, '?'))
+            return nivel, pls, av
+    # Falha: se nivel_max<3, explicar que ficou limitado
+    if nivel_max < 3:
+        return 0, [], "❌ Impossível no Nível ≤{}: '{}'.".format(nivel_max, u2n.get(uid, '?'))
+    return 0, [], "❌ Impossível: '{}'.".format(u2n.get(uid, '?'))
 
 def _score(grades_por_grupo, dias_base):
     sc=0
@@ -517,8 +563,10 @@ def gerar_grade():
     grupos_choque=session.get('grupos_choque',[])
     config_avancadas=session.get('config_avancadas',{})
     _normalizar_avancadas(config_avancadas); estado_sabado=config_avancadas.get('estado_sabado','desativado')
+    nivel_max = config_avancadas.get('nivel_restricao', 3)
     relatorio={'erros':[],'avisos':[],'niveis':{},'fase1_ok':False,'fase2_ok':False,
-               'professores_sobrecarga':[],'disciplinas_sem_professor':[],'score':0}
+               'professores_sobrecarga':[],'disciplinas_sem_professor':[],'score':0,
+               'nivel_max_usuario': nivel_max}
     u2n={disc_uid(d):d.get('nome','') for d in disciplinas}
 
     # Verificação básica
@@ -542,14 +590,14 @@ def gerar_grade():
         gpg={}; occ_global=defaultdict(list); avs=[]; nvs={}
         for gkey in sorted(grupos.keys()):
             curso,sem=gkey
-            dias_v=_get_dias_para_nivel(3,estado_sabado)
+            dias_v=_get_dias_para_nivel(nivel_max, estado_sabado)
             grade_g={d:{h:[] for h in HORARIOS} for d in dias_v}
             occ_g=defaultdict(list)
             ordered=sorted(grupos[gkey],key=lambda i:(-1 if config_disc[i].get('fixacoes') else 0,
                 -int(config_disc[i].get('aulas_semanais',2)),-len(config_disc[i].get('restricoes',[])),random.random()))
             for i in ordered:
                 uid=disc_uid(disciplinas[i]); cfg=config_disc[i] if i<len(config_disc) else {}
-                nv,_,av=_colocar_cascata(uid,cfg,estado_sabado,grade_g,occ_g,occ_global,grupos_choque,u2n)
+                nv,_,av=_colocar_cascata(uid,cfg,estado_sabado,grade_g,occ_g,occ_global,grupos_choque,u2n, nivel_max=nivel_max)
                 nvs[uid]=nv
                 if av: avs.append(av)
             gpg[gkey]=grade_g
@@ -568,7 +616,7 @@ def gerar_grade():
         grades_display[ks]={dia:{h:( ', '.join(u2n.get(u,u) for u in grade[dia][h]) if grade[dia][h] else '—') for h in HORARIOS} for dia in dias_grade}
 
     # Grade combinada
-    dias_max=_get_dias_para_nivel(3,estado_sabado)
+    dias_max=_get_dias_para_nivel(nivel_max, estado_sabado)
     gc={d:{h:[] for h in HORARIOS} for d in dias_max}
     for gkey,grade in grades_por_grupo.items():
         curso,sem=gkey; lbl='[{}º-{}]'.format(sem,curso)
@@ -674,7 +722,41 @@ def import_state():
     except Exception as e: return jsonify({'status':'erro','mensagem':str(e)})
 
 @app.route('/reset', methods=['POST'])
-def reset(): session.clear(); reset_state(); return jsonify({'status':'ok'})
+def reset():
+    """Reset COMPLETO: limpa toda a sessão + arquivo state.json. Mantém arquivos base."""
+    session.clear(); reset_state(); return jsonify({'status':'ok'})
+
+@app.route('/reset_configuracoes', methods=['POST'])
+def reset_configuracoes():
+    """
+    Reset SUAVE: mantém seleções (disciplinas + professores escolhidos),
+    mas zera todas as configurações (fixações, tipos, conflitos, indisponibilidades).
+    Útil para 'limpar tudo e começar config do zero'.
+    """
+    discs = session.get('disciplinas_selecionadas', [])
+    profs = session.get('professores_selecionados', [])
+    # Recria configs no padrão para cada disciplina/professor selecionado
+    session['config_disciplinas']  = [_cfg_padrao(d) for d in discs]
+    session['config_professores']  = [_cfg_padrao_prof() for _ in profs]
+    session['grupos_choque']       = []
+    session['config_avancadas']    = {'estado_sabado':'desativado','nivel_restricao':3}
+    # Limpa também resultados antigos (ficaram inválidos)
+    for k in ['resultado_grade_disciplinas','resultado_grade_professores',
+              'resultado_horarios_professores','resultado_grade_por_semestre',
+              'resultado_grade_por_professor','resultado_relatorio']:
+        session[k] = {}
+    session.modified = True; auto_save()
+    return jsonify({'status':'ok'})
+
+@app.route('/reset_resultados', methods=['POST'])
+def reset_resultados():
+    """Reset apenas dos resultados gerados — mantém TUDO (seleções + configs)."""
+    for k in ['resultado_grade_disciplinas','resultado_grade_professores',
+              'resultado_horarios_professores','resultado_grade_por_semestre',
+              'resultado_grade_por_professor','resultado_relatorio']:
+        session[k] = {}
+    session.modified = True; auto_save()
+    return jsonify({'status':'ok'})
 
 @app.route('/salvar_tema', methods=['POST'])
 def salvar_tema():

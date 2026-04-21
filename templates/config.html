@@ -164,13 +164,13 @@
         {% for p in professores %}{% set pi = loop.index0 %}
         {% set cp = config_professores[pi] if pi < config_professores|length else {'disciplinas_internas':[],'carga_maxima':20,'disponibilidade':[]} %}
         <div class="col-md-6 col-lg-4">
-            <div class="card prof-card h-100" data-prof-idx="{{ pi }}" style="cursor:pointer">
+            <div class="card prof-card h-100" data-prof-idx="{{ pi }}">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <i class="fas fa-user-tie text-primary"></i>
                         <strong style="font-size:.9rem">{{ p.nome }}</strong>
                     </div>
-                    <div class="d-flex gap-2 flex-wrap" style="font-size:.75rem">
+                    <div class="d-flex gap-2 flex-wrap mb-3" style="font-size:.75rem">
                         <span class="chip chip-lilac"><i class="fas fa-book me-1"></i>
                             <span class="prof-ndisc" data-prof-idx="{{ pi }}">{{ cp.disciplinas_internas|length }}</span> disc.
                         </span>
@@ -178,7 +178,22 @@
                             <span class="prof-ncarga" data-prof-idx="{{ pi }}">{{ cp.carga_maxima }}</span>h/sem
                         </span>
                     </div>
-                    <small class="text-muted d-block mt-2"><i class="fas fa-cog me-1"></i>Clique para configurar</small>
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-2 prof-configurar"
+                            data-prof-idx="{{ pi }}">
+                        <i class="fas fa-cog me-1"></i>Configurar
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary flex-1 prof-restaurar"
+                                data-prof-idx="{{ pi }}" data-nome="{{ p.nome }}"
+                                title="Restaurar configurações deste professor">
+                            <i class="fas fa-rotate-left me-1"></i>Restaurar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-danger flex-1 prof-remover"
+                                data-prof-idx="{{ pi }}" data-nome="{{ p.nome }}"
+                                style="border-color:var(--rose)" title="Remover este professor">
+                            <i class="fas fa-trash me-1"></i>Remover
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -316,22 +331,43 @@
                         <small class="text-muted d-block mt-1">Fixações no sábado são SEMPRE respeitadas, independente deste estado.</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Blocos de aula</label>
-                        <select class="form-select" id="quebrarBlocos">
-                            <option value="flexivel" {% if config_avancadas.quebrar_blocos == 'flexivel' %}selected{% endif %}>Flexível — blocos 2+3 (recomendado)</option>
-                            <option value="obrigatoria" {% if config_avancadas.quebrar_blocos == 'obrigatoria' %}selected{% endif %}>Obrigatória — sem blocos duplos</option>
-                            <option value="ignorada" {% if config_avancadas.quebrar_blocos == 'ignorada' %}selected{% endif %}>Ignorada</option>
+                        <label class="form-label fw-bold">Nível de Restrição</label>
+                        <select class="form-select" id="nivelRestricao">
+                            <option value="1" {% if config_avancadas.nivel_restricao == 1 %}selected{% endif %}>
+                                🔴 Nível 1 — Rígido
+                            </option>
+                            <option value="2" {% if config_avancadas.nivel_restricao == 2 %}selected{% endif %}>
+                                🟠 Nível 2 — Moderado
+                            </option>
+                            <option value="3" {% if not config_avancadas.nivel_restricao or config_avancadas.nivel_restricao == 3 %}selected{% endif %}>
+                                🟢 Nível 3 — Flexível (recomendado)
+                            </option>
                         </select>
+                        <small class="text-muted d-block mt-1">
+                            Define até onde o solver pode "afrouxar" restrições para encaixar as aulas.
+                        </small>
                     </div>
 
                     <div class="card p-3 mb-3" style="background:var(--bg2);border:1px solid var(--border)">
-                        <p class="section-title mb-2">Níveis de Restrição (cascata automática)</p>
+                        <p class="section-title mb-2">Como funcionam os níveis</p>
                         <div style="font-size:.8rem">
-                            <div class="d-flex align-items-center gap-2 mb-1"><span class="chip" style="background:#fee2e2;color:#991b1b">Nível 1 Rígido</span> Blocos diferentes dias · sem 17-18h · sem sábado</div>
-                            <div class="d-flex align-items-center gap-2 mb-1"><span class="chip" style="background:#fef3c7;color:#92400e">Nível 2 Moderado</span> Até 2 blocos/dia (só blocos de 2) · 17-18h só com bloco 3</div>
-                            <div class="d-flex align-items-center gap-2"><span class="chip" style="background:#d1fae5;color:#065f46">Nível 3 Flexível</span> Máx 2 blocos/dia · 17-18h se inevitável · sábado como fallback</div>
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <span class="chip" style="background:#fee2e2;color:#991b1b;white-space:nowrap">🔴 Nível 1</span>
+                                <span>Blocos da mesma disciplina em dias diferentes · sem horário 17-18h · sem sábado</span>
+                            </div>
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <span class="chip" style="background:#fef3c7;color:#92400e;white-space:nowrap">🟠 Nível 2</span>
+                                <span>Permite até 2 blocos de 2 aulas no mesmo dia · 17-18h só com bloco de 3 · sem sábado</span>
+                            </div>
+                            <div class="d-flex align-items-start gap-2">
+                                <span class="chip" style="background:#d1fae5;color:#065f46;white-space:nowrap">🟢 Nível 3</span>
+                                <span>Até 2 blocos/dia · 17-18h se inevitável · sábado conforme seu estado acima</span>
+                            </div>
                         </div>
-                        <small class="text-muted d-block mt-2">O solver tenta Nível 1 → 2 → 3 por disciplina automaticamente.</small>
+                        <small class="text-muted d-block mt-2">
+                            O solver sempre começa no Nível 1 (mais restrito) e vai afrouxando até o nível escolhido.
+                            Recomendado: <strong>Nível 3</strong> para maior chance de encaixar todas as aulas.
+                        </small>
                     </div>
 
                     <button id="salvarAvancadas" class="btn btn-primary">
@@ -364,12 +400,35 @@
                         <small class="text-muted d-block mt-1">Carrega um backup exportado anteriormente.</small>
                     </div>
                     <div class="mt-auto">
-                        <strong class="d-block mb-1 text-danger">🗑️ Limpar Tudo</strong>
+                        <strong class="d-block mb-2 text-danger"><i class="fas fa-eraser me-1"></i>Limpar Dados</strong>
+
+                        <!-- Reset 1: apenas resultados (mais leve) -->
+                        <button type="button" class="btn w-100 btn-outline-secondary text-warning mb-2" id="resetResultadosBtn"
+                                style="border-color:#f59e0b">
+                            <i class="fas fa-broom me-2"></i>Limpar Apenas Resultados
+                        </button>
+                        <small class="text-muted d-block mb-3" style="margin-top:-.25rem">
+                            Apaga grades geradas. Mantém disciplinas, professores e configurações.
+                        </small>
+
+                        <!-- Reset 2: configurações (médio) -->
+                        <button type="button" class="btn w-100 btn-outline-secondary mb-2" id="resetConfigsBtn"
+                                style="border-color:var(--lilac);color:var(--lilac)">
+                            <i class="fas fa-rotate-left me-2"></i>Limpar Configurações
+                        </button>
+                        <small class="text-muted d-block mb-3" style="margin-top:-.25rem">
+                            Apaga fixações, restrições, conflitos e indisponibilidades.
+                            Mantém seleções de disciplinas e professores.
+                        </small>
+
+                        <!-- Reset 3: total (mais forte) -->
                         <button type="button" class="btn w-100 btn-outline-secondary text-danger" id="resetTotalBtn"
                                 style="border-color:var(--rose)">
-                            <i class="fas fa-rotate-left me-2"></i>Restaurar Estado Inicial
+                            <i class="fas fa-trash me-2"></i>Limpar Tudo (Reset Total)
                         </button>
-                        <small class="text-muted d-block mt-1">Apaga TODAS as seleções e configurações. Irreversível.</small>
+                        <small class="text-muted d-block mt-1">
+                            Apaga TUDO: seleções, configurações e grades. Mantém apenas arquivos base.
+                        </small>
                     </div>
                 </div>
             </div>
@@ -638,9 +697,20 @@ document.getElementById('resetConfirmBtn').addEventListener('click',function(){
 
 document.querySelectorAll('.restaurar-disc').forEach(function(btn){
     btn.addEventListener('click',function(){
-        abrirReset('disciplina',parseInt(this.getAttribute('data-idx'),10),
-                   'a disciplina "'+this.getAttribute('data-nome')+'"',
-                   function(){location.reload();});
+        var idx = parseInt(this.getAttribute('data-idx'),10);
+        var nome = this.getAttribute('data-nome');
+        if (!confirm('Deseja restaurar a disciplina "' + nome + '"?\n\nIsto apaga fixações, restrições e volta o tipo a "interna".')) return;
+        fetch('/resetar_disciplina', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({idx: idx})
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.status === 'ok') { showAutoSave(); location.reload(); }
+            else alert('Erro: ' + (d.mensagem || 'desconhecido'));
+        })
+        .catch(function(){ alert('❌ Erro de rede'); });
     });
 });
 
@@ -681,8 +751,59 @@ function abrirProfModal(idx){
     new bootstrap.Modal(document.getElementById('profModal')).show();
 }
 
-document.querySelectorAll('.prof-card').forEach(function(c){
-    c.addEventListener('click',function(){abrirProfModal(parseInt(this.getAttribute('data-prof-idx'),10));});
+// Botão Configurar (abre modal)
+document.querySelectorAll('.prof-configurar').forEach(function(b){
+    b.addEventListener('click',function(){
+        abrirProfModal(parseInt(this.getAttribute('data-prof-idx'),10));
+    });
+});
+
+// Botão Restaurar (confirm simples)
+document.querySelectorAll('.prof-restaurar').forEach(function(b){
+    b.addEventListener('click',function(){
+        var idx = parseInt(this.getAttribute('data-prof-idx'),10);
+        var nome = this.getAttribute('data-nome');
+        if (!confirm('Deseja restaurar o professor "' + nome + '"?\n\nIsto apaga disciplinas atribuídas, indisponibilidades e volta a carga a 20h/sem.')) return;
+        fetch('/resetar_professor', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({idx: idx})
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.status === 'ok') {
+                profConfigBuffer[idx] = {disciplinas_internas:[], carga_maxima:20, disponibilidade:[]};
+                var nd = document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
+                var nc = document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
+                if (nd) nd.textContent = '0';
+                if (nc) nc.textContent = '20';
+                showAutoSave();
+            } else {
+                alert('Erro: ' + (d.mensagem || 'desconhecido'));
+            }
+        })
+        .catch(function(){ alert('❌ Erro de rede'); });
+    });
+});
+
+// Botão Remover (confirm simples)
+document.querySelectorAll('.prof-remover').forEach(function(b){
+    b.addEventListener('click',function(){
+        var idx = parseInt(this.getAttribute('data-prof-idx'),10);
+        var nome = this.getAttribute('data-nome');
+        if (!confirm('Deseja remover o professor "' + nome + '"?\n\nEle será retirado desta configuração.')) return;
+        fetch('/remover_professor_config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({idx: idx})
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.status === 'ok') location.reload();
+            else alert('Erro: ' + (d.mensagem || 'desconhecido'));
+        })
+        .catch(function(){ alert('❌ Erro de rede'); });
+    });
 });
 
 // Selecionar/desmarcar coluna
@@ -719,18 +840,31 @@ document.getElementById('profModalSalvar').addEventListener('click',function(){
 
 // Restaurar professor
 document.getElementById('restaurarProfBtn').addEventListener('click',function(){
-    if(profModalAtual.idx===null) return; var idx=profModalAtual.idx;
-    var prof=PROFESSORES_LIST[idx]||{};
-    var cur=bootstrap.Modal.getInstance(document.getElementById('profModal')); if(cur) cur.hide();
-    setTimeout(function(){
-        abrirReset('professor',idx,'o professor "'+(prof.nome||'?')+'"',function(){
-            profConfigBuffer[idx]={disciplinas_internas:[],carga_maxima:20,disponibilidade:[]};
-            var nd=document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
-            var nc=document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
-            if(nd) nd.textContent='0'; if(nc) nc.textContent='20';
-            setTimeout(function(){abrirProfModal(idx);},300);
-        });
-    },300);
+    if(profModalAtual.idx===null) return;
+    var idx = profModalAtual.idx;
+    var prof = PROFESSORES_LIST[idx] || {};
+    if (!confirm('Deseja restaurar o professor "' + (prof.nome || '?') + '"?\n\nIsto apaga disciplinas atribuídas, indisponibilidades e volta a carga a 20h/sem.')) return;
+    fetch('/resetar_professor', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({idx: idx})
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.status === 'ok') {
+            profConfigBuffer[idx] = {disciplinas_internas:[], carga_maxima:20, disponibilidade:[]};
+            var nd = document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
+            var nc = document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
+            if (nd) nd.textContent = '0';
+            if (nc) nc.textContent = '20';
+            showAutoSave();
+            // Re-render modal com dados limpos
+            abrirProfModal(idx);
+        } else {
+            alert('Erro: ' + (d.mensagem || 'desconhecido'));
+        }
+    })
+    .catch(function(){ alert('❌ Erro de rede'); });
 });
 
 // Salvar TODOS professores
@@ -813,7 +947,7 @@ if(btnLC){ btnLC.addEventListener('click',function(){
 // ── Avançadas ─────────────────────────────────────────────────────────────
 var btnAv=document.getElementById('salvarAvancadas');
 if(btnAv){ btnAv.addEventListener('click',function(){
-    var d={estado_sabado:document.getElementById('estadoSabado').value, quebrar_blocos:document.getElementById('quebrarBlocos').value};
+    var d={estado_sabado:document.getElementById('estadoSabado').value, nivel_restricao:parseInt(document.getElementById('nivelRestricao').value,10)};
     btnAv.disabled=true; btnAv.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Salvando...';
     fetch('/salvar_config_avancadas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
     .then(function(){
@@ -823,12 +957,115 @@ if(btnAv){ btnAv.addEventListener('click',function(){
     });
 });}
 
-// ── Reset Total ───────────────────────────────────────────────────────────
-var btnRT=document.getElementById('resetTotalBtn');
-if(btnRT){ btnRT.addEventListener('click',function(){
-    if(!confirm('⚠️ Apagar TODAS as seleções e configurações?\n\nIsto é IRREVERSÍVEL.')) return;
-    if(!confirm('Tem certeza? Última chance.')) return;
-    fetch('/reset',{method:'POST'}).then(function(){localStorage.removeItem('tema'); location.href='/';});
-});}
+// ── Resets em Camadas (3 níveis) ──────────────────────────────────────────
+// Cada um usa o mesmo modal de confirmação seguro (digite "CONFIRMAR RESET")
+
+function abrirResetGlobal(tipo) {
+    // tipo: 'resultados' | 'configuracoes' | 'total'
+    var configs = {
+        'resultados': {
+            label: 'TODAS as grades geradas',
+            impactos: [
+                'Grade combinada gerada',
+                'Grade por semestre',
+                'Grade com professores',
+                'Grade individual de cada professor'
+            ],
+            observacao: 'Suas seleções e configurações serão MANTIDAS.',
+            url: '/reset_resultados',
+            redirect: '/generate'
+        },
+        'configuracoes': {
+            label: 'TODAS as configurações',
+            impactos: [
+                'Tipos das disciplinas (volta a "interna")',
+                'Aulas/semana (volta ao padrão CH/15)',
+                'Horários fixos e bloqueados',
+                'Disciplinas atribuídas a professores',
+                'Carga máxima e indisponibilidades',
+                'Grupos de conflito',
+                'Configurações avançadas (sábado, blocos)',
+                'Grades geradas anteriormente'
+            ],
+            observacao: 'As SELEÇÕES de disciplinas e professores serão MANTIDAS.',
+            url: '/reset_configuracoes',
+            redirect: '/config'
+        },
+        'total': {
+            label: 'TUDO no sistema',
+            impactos: [
+                'Disciplinas selecionadas',
+                'Professores selecionados',
+                'Todas as configurações',
+                'Todas as grades geradas',
+                'Tema (volta ao claro)'
+            ],
+            observacao: 'Os arquivos base (em disciplinas/ e professores/) NÃO são apagados — você pode recomeçar do zero selecionando novamente.',
+            url: '/reset',
+            redirect: '/'
+        }
+    };
+    var c = configs[tipo];
+    if (!c) return;
+
+    // Reusar modal seguro existente
+    document.getElementById('resetTargetLabel').textContent = c.label;
+    var il = document.getElementById('resetImpactList');
+    il.innerHTML = c.impactos.map(function(s){return '<li>'+s+'</li>';}).join('') +
+                   '<li class="mt-2 text-info" style="list-style:none"><i class="fas fa-info-circle me-1"></i><em>'+c.observacao+'</em></li>';
+    var inp = document.getElementById('resetConfirmInput');
+    inp.value = ''; inp.classList.remove('match');
+    document.getElementById('resetConfirmBtn').disabled = true;
+    document.getElementById('resetInputStatus').textContent = '';
+
+    // Substituir handler do botão Confirmar para chamar a URL correta
+    var btnConf = document.getElementById('resetConfirmBtn');
+    var novoBtn = btnConf.cloneNode(true);  // remove handlers antigos
+    btnConf.parentNode.replaceChild(novoBtn, btnConf);
+    novoBtn.disabled = true;
+
+    novoBtn.addEventListener('click', function() {
+        novoBtn.disabled = true;
+        novoBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Limpando...';
+        fetch(c.url, {method:'POST'})
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.status === 'ok') {
+                    bootstrap.Modal.getInstance(document.getElementById('resetConfirmModal')).hide();
+                    if (tipo === 'total') localStorage.removeItem('tema');
+                    location.href = c.redirect;
+                } else {
+                    alert('Erro: ' + (d.mensagem || 'desconhecido'));
+                    novoBtn.disabled = false;
+                    novoBtn.innerHTML = '<i class="fas fa-rotate-left me-1"></i>Confirmar Reset';
+                }
+            })
+            .catch(function(){
+                alert('❌ Erro de rede');
+                novoBtn.disabled = false;
+                novoBtn.innerHTML = '<i class="fas fa-rotate-left me-1"></i>Confirmar Reset';
+            });
+    });
+
+    // Re-bindar listener do input
+    inp.addEventListener('input', function(){
+        var ok = this.value === 'CONFIRMAR RESET';
+        novoBtn.disabled = !ok;
+        this.classList.toggle('match', ok);
+        document.getElementById('resetInputStatus').innerHTML = ok ? '<i class="fas fa-check text-success me-1"></i>Texto correto' : '';
+    });
+
+    new bootstrap.Modal(document.getElementById('resetConfirmModal')).show();
+    setTimeout(function(){ inp.focus(); }, 300);
+}
+
+var btnRR = document.getElementById('resetResultadosBtn');
+if (btnRR) btnRR.addEventListener('click', function(){ abrirResetGlobal('resultados'); });
+
+var btnRC = document.getElementById('resetConfigsBtn');
+if (btnRC) btnRC.addEventListener('click', function(){ abrirResetGlobal('configuracoes'); });
+
+var btnRT = document.getElementById('resetTotalBtn');
+if (btnRT) btnRT.addEventListener('click', function(){ abrirResetGlobal('total'); });
 </script>
 {% endblock %}

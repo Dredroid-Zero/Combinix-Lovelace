@@ -36,6 +36,13 @@
       "semestre": 2
     },
     {
+      "carga_horaria": 90,
+      "codigo": "-",
+      "curso": "Matemática",
+      "nome": "Cálculo Diferencial e Integral II",
+      "semestre": 4
+    },
+    {
       "carga_horaria": 60,
       "codigo": "-",
       "curso": "Matemática",
@@ -134,13 +141,6 @@
       "semestre": 2
     },
     {
-      "carga_horaria": 90,
-      "codigo": "CDI2",
-      "curso": "Física",
-      "nome": "Cálculo Diferencial e Integral II",
-      "semestre": 3
-    },
-    {
       "carga_horaria": 60,
       "codigo": "CDI3",
       "curso": "Física",
@@ -219,6 +219,13 @@
       "restricoes": [],
       "semestre_oferta": 2,
       "tipo": "externa"
+    },
+    {
+      "aulas_semanais": 6,
+      "fixacoes": [],
+      "restricoes": [],
+      "semestre_oferta": 4,
+      "tipo": "interna"
     },
     {
       "aulas_semanais": 4,
@@ -319,13 +326,6 @@
       "tipo": "cedida"
     },
     {
-      "aulas_semanais": 6,
-      "fixacoes": [],
-      "restricoes": [],
-      "semestre_oferta": 3,
-      "tipo": "cedida"
-    },
-    {
       "aulas_semanais": 4,
       "fixacoes": [],
       "restricoes": [],
@@ -347,10 +347,10 @@
         "0",
         "1",
         "5",
-        "9",
+        "6",
         "10",
         "11",
-        "13",
+        "12",
         "14",
         "15",
         "16",
@@ -368,21 +368,21 @@
         "0",
         "1",
         "5",
-        "9",
+        "6",
         "10",
         "11",
-        "13",
+        "12",
         "14",
         "15",
         "16",
-        "17"
+        "17",
+        "18"
       ],
       "disponibilidade": []
     },
     {
       "carga_maxima": 20,
       "disciplinas_internas": [
-        "18",
         "19",
         "20",
         "21"
@@ -395,10 +395,10 @@
         "0",
         "1",
         "5",
-        "9",
+        "6",
         "10",
         "11",
-        "13",
+        "12",
         "14",
         "15",
         "16",
@@ -416,21 +416,21 @@
         "0",
         "1",
         "5",
-        "9",
+        "6",
         "10",
         "11",
-        "13",
+        "12",
         "14",
         "15",
         "16",
-        "17"
+        "17",
+        "18"
       ],
       "disponibilidade": []
     },
     {
       "carga_maxima": 20,
       "disciplinas_internas": [
-        "18",
         "19",
         "20",
         "21"
@@ -443,10 +443,10 @@
         "0",
         "1",
         "5",
-        "9",
+        "6",
         "10",
         "11",
-        "13",
+        "12",
         "14",
         "15",
         "16",
@@ -464,14 +464,15 @@
         "0",
         "1",
         "5",
-        "9",
+        "6",
         "10",
         "11",
-        "13",
+        "12",
         "14",
         "15",
         "16",
-        "17"
+        "17",
+        "18"
       ],
       "disponibilidade": []
     },
@@ -481,10 +482,10 @@
         "0",
         "1",
         "5",
-        "9",
+        "6",
         "10",
         "11",
-        "13",
+        "12",
         "14",
         "15",
         "16",
@@ -497,235 +498,219 @@
       "disponibilidade": []
     }
   ],
-  "grupos_choque": [
-    {
-      "disciplinas": [
-        "Geometria Analítica",
-        "Física Geral I"
-      ],
-      "nome": "lucio"
-    },
-    {
-      "disciplinas": [
-        "Fundamentos da Educação",
-        "Leitura e Produção de Texto II",
-        "Introdução à Estatística",
-        "Práticas Educativas III"
-      ],
-      "nome": "cARLOS"
-    }
-  ],
+  "grupos_choque": [],
   "config_avancadas": {
     "estado_sabado": "desativado",
-    "quebrar_blocos": "flexivel"
+    "nivel_restricao": 1
   },
   "resultado_grade_disciplinas": {
     "Segunda": {
-      "08:00-09:00": "—",
-      "09:00-10:00": "[2º-Biologia] Introdução à Matemática | [2º-Matemática] Lógica, Conjuntos e Funções | [4º-Matemática] Física Geral I",
-      "10:00-11:00": "[2º-Biologia] Introdução à Matemática | [2º-Matemática] Lógica, Conjuntos e Funções | [4º-Matemática] Física Geral I | [6º-Matemática] Cálculo Numérico | [8º-Matemática] Estruturas Algébricas II",
-      "11:00-12:00": "[2º-Biologia] Introdução à Matemática | [2º-Matemática] Lógica, Conjuntos e Funções | [4º-Matemática] Física Geral I | [6º-Matemática] Cálculo Numérico | [8º-Matemática] Estruturas Algébricas II",
-      "14:00-15:00": "[2º-Matemática] Leitura e Produção de Texto II | [6º-Matemática] Física Geral III",
-      "15:00-16:00": "[2º-Matemática] Leitura e Produção de Texto II | [6º-Matemática] Física Geral III | [8º-Matemática] Estágio Supervisionado III",
-      "16:00-17:00": "[6º-Matemática] Física Geral III | [8º-Matemática] Estágio Supervisionado III",
+      "08:00-09:00": "[2º-Matemática] Geometria Analítica | [6º-Matemática] Teoria dos Números | [8º-Matemática] Análise na Reta I",
+      "09:00-10:00": "[2º-Física] Cálculo Diferencial e Integral I | [2º-Matemática] Geometria Analítica | [4º-Matemática] Física Geral I | [6º-Matemática] Teoria dos Números | [8º-Matemática] Análise na Reta I",
+      "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I | [2º-Matemática] Geometria Analítica | [4º-Matemática] Física Geral I | [6º-Matemática] Álgebra Linear I | [8º-Matemática] Optativa I",
+      "11:00-12:00": "[2º-Física] Cálculo Diferencial e Integral I | [4º-Matemática] Física Geral I | [6º-Matemática] Álgebra Linear I | [8º-Matemática] Optativa I",
+      "14:00-15:00": "[4º-Matemática] Introdução à Estatística",
+      "15:00-16:00": "[4º-Matemática] Introdução à Estatística | [6º-Matemática] Cálculo Numérico",
+      "16:00-17:00": "[6º-Matemática] Cálculo Numérico",
       "17:00-18:00": "—"
     },
     "Terça": {
-      "08:00-09:00": "[2º-Matemática] Práticas Educativas I | [6º-Matemática] Teoria dos Números",
-      "09:00-10:00": "[3º-Física] Cálculo Diferencial e Integral II | [4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Práticas Educativas I | [6º-Matemática] Teoria dos Números",
-      "10:00-11:00": "[3º-Física] Cálculo Diferencial e Integral II | [4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Práticas Educativas I",
-      "11:00-12:00": "[3º-Física] Cálculo Diferencial e Integral II",
-      "14:00-15:00": "[4º-Matemática] Introdução à Estatística | [6º-Matemática] Álgebra Linear I | [8º-Matemática] Optativa I",
-      "15:00-16:00": "[4º-Matemática] Introdução à Estatística | [6º-Matemática] Álgebra Linear I | [8º-Matemática] Optativa I",
-      "16:00-17:00": "—",
+      "08:00-09:00": "[2º-Física] Cálculo Diferencial e Integral I | [6º-Matemática] Estágio Supervisionado I",
+      "09:00-10:00": "[2º-Física] Cálculo Diferencial e Integral I | [4º-Matemática] Cálculo Diferencial e Integral II | [6º-Matemática] Estágio Supervisionado I",
+      "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I | [2º-Matemática] Leitura e Produção de Texto II | [4º-Matemática] Cálculo Diferencial e Integral II | [6º-Matemática] Estágio Supervisionado I | [8º-Matemática] Estruturas Algébricas II",
+      "11:00-12:00": "[2º-Matemática] Leitura e Produção de Texto II | [4º-Matemática] Cálculo Diferencial e Integral II | [8º-Matemática] Estruturas Algébricas II",
+      "14:00-15:00": "[2º-Matemática] Fundamentos da Educação | [8º-Matemática] Estágio Supervisionado III",
+      "15:00-16:00": "[2º-Matemática] Fundamentos da Educação | [4º-Matemática] Introdução à Estatística | [6º-Matemática] Álgebra Linear I | [8º-Matemática] Estágio Supervisionado III",
+      "16:00-17:00": "[2º-Matemática] Fundamentos da Educação | [4º-Matemática] Introdução à Estatística | [6º-Matemática] Álgebra Linear I",
       "17:00-18:00": "—"
     },
     "Quarta": {
-      "08:00-09:00": "[4º-Matemática] Física Geral I | [8º-Matemática] Estágio Supervisionado III",
-      "09:00-10:00": "[2º-Física] Cálculo Diferencial e Integral I | [2º-Matemática] Lógica, Conjuntos e Funções | [4º-Matemática] Física Geral I | [6º-Matemática] Estágio Supervisionado I | [8º-Matemática] Estágio Supervisionado III",
-      "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I | [2º-Matemática] Lógica, Conjuntos e Funções | [4º-Matemática] Física Geral I | [6º-Matemática] Estágio Supervisionado I | [8º-Matemática] Análise na Reta I",
-      "11:00-12:00": "[2º-Física] Cálculo Diferencial e Integral I | [2º-Matemática] Lógica, Conjuntos e Funções | [6º-Matemática] Estágio Supervisionado I | [8º-Matemática] Análise na Reta I",
-      "14:00-15:00": "[2º-Matemática] Leitura e Produção de Texto II | [4º-Matemática] Psicologia da Educação | [6º-Matemática] Física Geral III | [8º-Matemática] Optativa I",
-      "15:00-16:00": "[2º-Matemática] Leitura e Produção de Texto II | [4º-Matemática] Psicologia da Educação | [6º-Matemática] Física Geral III | [8º-Matemática] Optativa I",
-      "16:00-17:00": "[6º-Matemática] Física Geral III",
+      "08:00-09:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+      "09:00-10:00": "[4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Lógica, Conjuntos e Funções | [4º-Matemática] Práticas Educativas III | [6º-Matemática] Física Geral III",
+      "10:00-11:00": "[4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Lógica, Conjuntos e Funções | [4º-Matemática] Práticas Educativas III | [6º-Matemática] Física Geral III | [8º-Matemática] Análise na Reta I",
+      "11:00-12:00": "[4º-Matemática] Práticas Educativas III | [6º-Matemática] Física Geral III | [8º-Matemática] Análise na Reta I",
+      "14:00-15:00": "[2º-Biologia] Introdução à Matemática | [4º-Matemática] Psicologia da Educação | [8º-Matemática] Estágio Supervisionado III",
+      "15:00-16:00": "[2º-Biologia] Introdução à Matemática | [4º-Matemática] Psicologia da Educação | [8º-Matemática] Estágio Supervisionado III",
+      "16:00-17:00": "[2º-Biologia] Introdução à Matemática | [8º-Matemática] Estágio Supervisionado III",
       "17:00-18:00": "—"
     },
     "Quinta": {
-      "08:00-09:00": "[2º-Física] Cálculo Diferencial e Integral I | [3º-Física] Cálculo Diferencial e Integral II | [6º-Matemática] Álgebra Linear I | [8º-Matemática] Estágio Supervisionado III",
-      "09:00-10:00": "[2º-Física] Cálculo Diferencial e Integral I | [3º-Física] Cálculo Diferencial e Integral II | [2º-Matemática] Geometria Analítica | [4º-Matemática] Práticas Educativas III | [6º-Matemática] Álgebra Linear I | [8º-Matemática] Estágio Supervisionado III",
-      "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I | [3º-Física] Cálculo Diferencial e Integral II | [2º-Matemática] Geometria Analítica | [4º-Matemática] Práticas Educativas III | [8º-Matemática] Estágio Supervisionado III",
-      "11:00-12:00": "[2º-Matemática] Geometria Analítica | [4º-Matemática] Práticas Educativas III",
-      "14:00-15:00": "[6º-Matemática] Estágio Supervisionado I",
-      "15:00-16:00": "[4º-Matemática] Introdução à Estatística | [6º-Matemática] Estágio Supervisionado I",
-      "16:00-17:00": "[4º-Matemática] Introdução à Estatística | [6º-Matemática] Estágio Supervisionado I",
+      "08:00-09:00": "[4º-Matemática] Cálculo Diferencial e Integral II | [6º-Matemática] Cálculo Numérico",
+      "09:00-10:00": "[4º-Matemática] Cálculo Diferencial e Integral II | [6º-Matemática] Cálculo Numérico",
+      "10:00-11:00": "[4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Leitura e Produção de Texto II | [4º-Matemática] Cálculo Diferencial e Integral II | [6º-Matemática] Teoria dos Números",
+      "11:00-12:00": "[4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Leitura e Produção de Texto II | [6º-Matemática] Teoria dos Números",
+      "14:00-15:00": "[2º-Matemática] Geometria Analítica | [4º-Matemática] Física Geral I | [8º-Matemática] Estruturas Algébricas II",
+      "15:00-16:00": "[2º-Matemática] Geometria Analítica | [4º-Matemática] Física Geral I | [8º-Matemática] Estruturas Algébricas II",
+      "16:00-17:00": "[2º-Matemática] Geometria Analítica | [4º-Matemática] Física Geral I",
       "17:00-18:00": "—"
     },
     "Sexta": {
-      "08:00-09:00": "[2º-Matemática] Fundamentos da Educação | [8º-Matemática] Estruturas Algébricas II",
-      "09:00-10:00": "[4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Fundamentos da Educação | [8º-Matemática] Estruturas Algébricas II",
-      "10:00-11:00": "[4º-Física] Cálculo Diferencial e Integral III | [2º-Matemática] Fundamentos da Educação | [6º-Matemática] Teoria dos Números",
-      "11:00-12:00": "[6º-Matemática] Teoria dos Números",
-      "14:00-15:00": "[2º-Matemática] Geometria Analítica | [4º-Matemática] Psicologia da Educação | [6º-Matemática] Cálculo Numérico",
-      "15:00-16:00": "[2º-Matemática] Geometria Analítica | [4º-Matemática] Psicologia da Educação | [6º-Matemática] Cálculo Numérico | [8º-Matemática] Análise na Reta I",
-      "16:00-17:00": "[2º-Matemática] Geometria Analítica | [8º-Matemática] Análise na Reta I",
+      "08:00-09:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+      "09:00-10:00": "[2º-Matemática] Lógica, Conjuntos e Funções | [6º-Matemática] Estágio Supervisionado I | [8º-Matemática] Optativa I",
+      "10:00-11:00": "[2º-Matemática] Lógica, Conjuntos e Funções | [6º-Matemática] Estágio Supervisionado I | [8º-Matemática] Optativa I",
+      "11:00-12:00": "[6º-Matemática] Estágio Supervisionado I",
+      "14:00-15:00": "[2º-Matemática] Práticas Educativas I | [6º-Matemática] Física Geral III | [8º-Matemática] Estágio Supervisionado III",
+      "15:00-16:00": "[2º-Matemática] Práticas Educativas I | [4º-Matemática] Psicologia da Educação | [6º-Matemática] Física Geral III | [8º-Matemática] Estágio Supervisionado III",
+      "16:00-17:00": "[2º-Matemática] Práticas Educativas I | [4º-Matemática] Psicologia da Educação | [6º-Matemática] Física Geral III",
       "17:00-18:00": "—"
     }
   },
   "resultado_grade_professores": {
     "Segunda": {
-      "08:00-09:00": "—",
-      "09:00-10:00": "[4º-Matemática] Física Geral I",
-      "10:00-11:00": "[8º-Matemática] Estruturas Algébricas II (Danila Fernandes Tavares)",
-      "11:00-12:00": "[8º-Matemática] Estruturas Algébricas II (Danila Fernandes Tavares)",
-      "14:00-15:00": "[6º-Matemática] Física Geral III",
-      "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III (Lucas Siebra Rocha)",
-      "16:00-17:00": "[8º-Matemática] Estágio Supervisionado III (Tatiana Skoraia)",
+      "08:00-09:00": "[8º-Matemática] Análise na Reta I (Tatiana Skoraia)",
+      "09:00-10:00": "[8º-Matemática] Análise na Reta I (Danila Fernandes Tavares)",
+      "10:00-11:00": "[8º-Matemática] Optativa I (Lucas Siebra Rocha)",
+      "11:00-12:00": "[8º-Matemática] Optativa I (Tatiana Skoraia)",
+      "14:00-15:00": "[4º-Matemática] Introdução à Estatística (Danila Fernandes Tavares)",
+      "15:00-16:00": "[6º-Matemática] Cálculo Numérico (Tatiana Skoraia)",
+      "16:00-17:00": "[6º-Matemática] Cálculo Numérico (Danila Fernandes Tavares)",
       "17:00-18:00": "—"
     },
     "Terça": {
-      "08:00-09:00": "[6º-Matemática] Teoria dos Números (Danila Fernandes Tavares)",
-      "09:00-10:00": "[6º-Matemática] Teoria dos Números (Lucas Siebra Rocha)",
-      "10:00-11:00": "[2º-Matemática] Práticas Educativas I",
-      "11:00-12:00": "[3º-Física] Cálculo Diferencial e Integral II (Marcelo Dário dos Santos Amaral)",
-      "14:00-15:00": "[8º-Matemática] Optativa I (Lucas Siebra Rocha)",
-      "15:00-16:00": "[8º-Matemática] Optativa I (Tatiana Skoraia)",
-      "16:00-17:00": "—",
+      "08:00-09:00": "[6º-Matemática] Estágio Supervisionado I (Lucas Siebra Rocha)",
+      "09:00-10:00": "[6º-Matemática] Estágio Supervisionado I (Danila Fernandes Tavares)",
+      "10:00-11:00": "[8º-Matemática] Estruturas Algébricas II (Lucas Siebra Rocha)",
+      "11:00-12:00": "[8º-Matemática] Estruturas Algébricas II (Danila Fernandes Tavares)",
+      "14:00-15:00": "[8º-Matemática] Estágio Supervisionado III (Lucas Siebra Rocha)",
+      "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III (Danila Fernandes Tavares)",
+      "16:00-17:00": "[6º-Matemática] Álgebra Linear I (Tatiana Skoraia)",
       "17:00-18:00": "—"
     },
     "Quarta": {
-      "08:00-09:00": "[8º-Matemática] Estágio Supervisionado III (Lucas Siebra Rocha)",
-      "09:00-10:00": "[8º-Matemática] Estágio Supervisionado III (Tatiana Skoraia)",
-      "10:00-11:00": "[8º-Matemática] Análise na Reta I (Danila Fernandes Tavares)",
-      "11:00-12:00": "[8º-Matemática] Análise na Reta I (Lucas Siebra Rocha)",
-      "14:00-15:00": "[8º-Matemática] Optativa I (Tatiana Skoraia)",
-      "15:00-16:00": "[8º-Matemática] Optativa I (Danila Fernandes Tavares)",
-      "16:00-17:00": "[6º-Matemática] Física Geral III",
+      "08:00-09:00": "[2º-Matemática] Lógica, Conjuntos e Funções (Danila Fernandes Tavares)",
+      "09:00-10:00": "[6º-Matemática] Física Geral III",
+      "10:00-11:00": "[8º-Matemática] Análise na Reta I (Lucas Siebra Rocha)",
+      "11:00-12:00": "[8º-Matemática] Análise na Reta I (Tatiana Skoraia)",
+      "14:00-15:00": "[8º-Matemática] Estágio Supervisionado III (Tatiana Skoraia)",
+      "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III (Danila Fernandes Tavares)",
+      "16:00-17:00": "[8º-Matemática] Estágio Supervisionado III (Lucas Siebra Rocha)",
       "17:00-18:00": "—"
     },
     "Quinta": {
-      "08:00-09:00": "[8º-Matemática] Estágio Supervisionado III (Tatiana Skoraia)",
-      "09:00-10:00": "[8º-Matemática] Estágio Supervisionado III (Lucas Siebra Rocha)",
-      "10:00-11:00": "[8º-Matemática] Estágio Supervisionado III (Danila Fernandes Tavares)",
-      "11:00-12:00": "[4º-Matemática] Práticas Educativas III",
-      "14:00-15:00": "[6º-Matemática] Estágio Supervisionado I (Danila Fernandes Tavares)",
-      "15:00-16:00": "[6º-Matemática] Estágio Supervisionado I (Lucas Siebra Rocha)",
-      "16:00-17:00": "[6º-Matemática] Estágio Supervisionado I (Tatiana Skoraia)",
+      "08:00-09:00": "[6º-Matemática] Cálculo Numérico (Danila Fernandes Tavares)",
+      "09:00-10:00": "[6º-Matemática] Cálculo Numérico (Lucas Siebra Rocha)",
+      "10:00-11:00": "[6º-Matemática] Teoria dos Números (Tatiana Skoraia)",
+      "11:00-12:00": "[6º-Matemática] Teoria dos Números (Danila Fernandes Tavares)",
+      "14:00-15:00": "[8º-Matemática] Estruturas Algébricas II (Tatiana Skoraia)",
+      "15:00-16:00": "[8º-Matemática] Estruturas Algébricas II (Danila Fernandes Tavares)",
+      "16:00-17:00": "[4º-Matemática] Física Geral I",
       "17:00-18:00": "—"
     },
     "Sexta": {
-      "08:00-09:00": "[8º-Matemática] Estruturas Algébricas II (Lucas Siebra Rocha)",
-      "09:00-10:00": "[8º-Matemática] Estruturas Algébricas II (Tatiana Skoraia)",
-      "10:00-11:00": "[6º-Matemática] Teoria dos Números (Danila Fernandes Tavares)",
-      "11:00-12:00": "[6º-Matemática] Teoria dos Números (Lucas Siebra Rocha)",
-      "14:00-15:00": "[6º-Matemática] Cálculo Numérico (Tatiana Skoraia)",
-      "15:00-16:00": "[8º-Matemática] Análise na Reta I (Tatiana Skoraia)",
-      "16:00-17:00": "[8º-Matemática] Análise na Reta I (Danila Fernandes Tavares)",
+      "08:00-09:00": "[2º-Matemática] Lógica, Conjuntos e Funções (Danila Fernandes Tavares)",
+      "09:00-10:00": "[8º-Matemática] Optativa I (Danila Fernandes Tavares)",
+      "10:00-11:00": "[8º-Matemática] Optativa I (Amanda Angélica Feltrin Nunes)",
+      "11:00-12:00": "[6º-Matemática] Estágio Supervisionado I (Danila Fernandes Tavares)",
+      "14:00-15:00": "[8º-Matemática] Estágio Supervisionado III (Lucas Siebra Rocha)",
+      "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III (Tatiana Skoraia)",
+      "16:00-17:00": "[6º-Matemática] Física Geral III",
       "17:00-18:00": "—"
     }
   },
   "resultado_horarios_professores": {
-    "Amanda Angélica Feltrin Nunes": [],
+    "Amanda Angélica Feltrin Nunes": [
+      "[8º-Matemática] Sexta 10:00-11:00: Optativa I"
+    ],
     "Danila Fernandes Tavares": [
-      "[2º-Matemática] Segunda 09:00-10:00: Lógica, Conjuntos e Funções",
-      "[2º-Matemática] Quarta 09:00-10:00: Lógica, Conjuntos e Funções",
-      "[2º-Matemática] Quinta 09:00-10:00: Geometria Analítica",
-      "[2º-Matemática] Sexta 14:00-15:00: Geometria Analítica",
-      "[4º-Matemática] Terça 14:00-15:00: Introdução à Estatística",
-      "[4º-Matemática] Quinta 16:00-17:00: Introdução à Estatística",
-      "[6º-Matemática] Terça 08:00-09:00: Teoria dos Números",
-      "[6º-Matemática] Terça 15:00-16:00: Álgebra Linear I",
-      "[6º-Matemática] Quarta 11:00-12:00: Estágio Supervisionado I",
-      "[6º-Matemática] Quinta 14:00-15:00: Estágio Supervisionado I",
-      "[6º-Matemática] Sexta 10:00-11:00: Teoria dos Números",
-      "[6º-Matemática] Sexta 15:00-16:00: Cálculo Numérico",
-      "[8º-Matemática] Segunda 10:00-11:00: Estruturas Algébricas II",
-      "[8º-Matemática] Segunda 11:00-12:00: Estruturas Algébricas II",
-      "[8º-Matemática] Quarta 10:00-11:00: Análise na Reta I",
-      "[8º-Matemática] Quarta 15:00-16:00: Optativa I",
-      "[8º-Matemática] Quinta 10:00-11:00: Estágio Supervisionado III",
-      "[8º-Matemática] Sexta 16:00-17:00: Análise na Reta I"
+      "[2º-Matemática] Segunda 08:00-09:00: Geometria Analítica",
+      "[2º-Matemática] Quarta 08:00-09:00: Lógica, Conjuntos e Funções",
+      "[2º-Matemática] Quinta 14:00-15:00: Geometria Analítica",
+      "[2º-Matemática] Sexta 08:00-09:00: Lógica, Conjuntos e Funções",
+      "[4º-Matemática] Segunda 14:00-15:00: Introdução à Estatística",
+      "[4º-Matemática] Terça 10:00-11:00: Cálculo Diferencial e Integral II",
+      "[4º-Matemática] Terça 16:00-17:00: Introdução à Estatística",
+      "[4º-Matemática] Quinta 10:00-11:00: Cálculo Diferencial e Integral II",
+      "[6º-Matemática] Segunda 10:00-11:00: Álgebra Linear I",
+      "[6º-Matemática] Segunda 16:00-17:00: Cálculo Numérico",
+      "[6º-Matemática] Terça 09:00-10:00: Estágio Supervisionado I",
+      "[6º-Matemática] Quinta 08:00-09:00: Cálculo Numérico",
+      "[6º-Matemática] Quinta 11:00-12:00: Teoria dos Números",
+      "[6º-Matemática] Sexta 11:00-12:00: Estágio Supervisionado I",
+      "[8º-Matemática] Segunda 09:00-10:00: Análise na Reta I",
+      "[8º-Matemática] Terça 11:00-12:00: Estruturas Algébricas II",
+      "[8º-Matemática] Terça 15:00-16:00: Estágio Supervisionado III",
+      "[8º-Matemática] Quarta 15:00-16:00: Estágio Supervisionado III",
+      "[8º-Matemática] Quinta 15:00-16:00: Estruturas Algébricas II",
+      "[8º-Matemática] Sexta 09:00-10:00: Optativa I"
     ],
     "João Francisco da Silva Filho": [
-      "[2º-Biologia] Segunda 09:00-10:00: Introdução à Matemática",
-      "[2º-Biologia] Segunda 11:00-12:00: Introdução à Matemática",
-      "[2º-Física] Quarta 10:00-11:00: Cálculo Diferencial e Integral I",
-      "[2º-Física] Quinta 08:00-09:00: Cálculo Diferencial e Integral I",
-      "[2º-Física] Quinta 10:00-11:00: Cálculo Diferencial e Integral I",
-      "[3º-Física] Terça 10:00-11:00: Cálculo Diferencial e Integral II",
-      "[3º-Física] Quinta 09:00-10:00: Cálculo Diferencial e Integral II",
-      "[4º-Física] Terça 09:00-10:00: Cálculo Diferencial e Integral III",
-      "[4º-Física] Sexta 09:00-10:00: Cálculo Diferencial e Integral III",
-      "[4º-Física] Sexta 10:00-11:00: Cálculo Diferencial e Integral III"
+      "[2º-Biologia] Quarta 14:00-15:00: Introdução à Matemática",
+      "[2º-Biologia] Quarta 16:00-17:00: Introdução à Matemática",
+      "[2º-Física] Segunda 10:00-11:00: Cálculo Diferencial e Integral I",
+      "[2º-Física] Terça 08:00-09:00: Cálculo Diferencial e Integral I",
+      "[2º-Física] Terça 10:00-11:00: Cálculo Diferencial e Integral I",
+      "[4º-Física] Quarta 10:00-11:00: Cálculo Diferencial e Integral III",
+      "[4º-Física] Quinta 11:00-12:00: Cálculo Diferencial e Integral III"
     ],
     "Joserlan Perote da Silva": [],
     "Lucas Siebra Rocha": [
-      "[2º-Matemática] Segunda 10:00-11:00: Lógica, Conjuntos e Funções",
-      "[2º-Matemática] Quarta 10:00-11:00: Lógica, Conjuntos e Funções",
-      "[2º-Matemática] Quinta 10:00-11:00: Geometria Analítica",
-      "[2º-Matemática] Sexta 15:00-16:00: Geometria Analítica",
-      "[4º-Matemática] Terça 15:00-16:00: Introdução à Estatística",
-      "[6º-Matemática] Segunda 11:00-12:00: Cálculo Numérico",
-      "[6º-Matemática] Terça 09:00-10:00: Teoria dos Números",
-      "[6º-Matemática] Quarta 09:00-10:00: Estágio Supervisionado I",
-      "[6º-Matemática] Quinta 08:00-09:00: Álgebra Linear I",
-      "[6º-Matemática] Quinta 15:00-16:00: Estágio Supervisionado I",
-      "[6º-Matemática] Sexta 11:00-12:00: Teoria dos Números",
-      "[8º-Matemática] Segunda 15:00-16:00: Estágio Supervisionado III",
-      "[8º-Matemática] Terça 14:00-15:00: Optativa I",
-      "[8º-Matemática] Quarta 08:00-09:00: Estágio Supervisionado III",
-      "[8º-Matemática] Quarta 11:00-12:00: Análise na Reta I",
-      "[8º-Matemática] Quinta 09:00-10:00: Estágio Supervisionado III",
-      "[8º-Matemática] Sexta 08:00-09:00: Estruturas Algébricas II"
+      "[2º-Matemática] Segunda 09:00-10:00: Geometria Analítica",
+      "[2º-Matemática] Quarta 09:00-10:00: Lógica, Conjuntos e Funções",
+      "[2º-Matemática] Quinta 15:00-16:00: Geometria Analítica",
+      "[2º-Matemática] Sexta 09:00-10:00: Lógica, Conjuntos e Funções",
+      "[4º-Matemática] Segunda 15:00-16:00: Introdução à Estatística",
+      "[4º-Matemática] Terça 11:00-12:00: Cálculo Diferencial e Integral II",
+      "[4º-Matemática] Quinta 08:00-09:00: Cálculo Diferencial e Integral II",
+      "[6º-Matemática] Segunda 08:00-09:00: Teoria dos Números",
+      "[6º-Matemática] Segunda 11:00-12:00: Álgebra Linear I",
+      "[6º-Matemática] Terça 08:00-09:00: Estágio Supervisionado I",
+      "[6º-Matemática] Terça 15:00-16:00: Álgebra Linear I",
+      "[6º-Matemática] Quinta 09:00-10:00: Cálculo Numérico",
+      "[6º-Matemática] Sexta 10:00-11:00: Estágio Supervisionado I",
+      "[8º-Matemática] Segunda 10:00-11:00: Optativa I",
+      "[8º-Matemática] Terça 10:00-11:00: Estruturas Algébricas II",
+      "[8º-Matemática] Terça 14:00-15:00: Estágio Supervisionado III",
+      "[8º-Matemática] Quarta 10:00-11:00: Análise na Reta I",
+      "[8º-Matemática] Quarta 16:00-17:00: Estágio Supervisionado III",
+      "[8º-Matemática] Sexta 14:00-15:00: Estágio Supervisionado III"
     ],
     "Marcelo Dário dos Santos Amaral": [
-      "[2º-Biologia] Segunda 10:00-11:00: Introdução à Matemática",
-      "[2º-Física] Quarta 09:00-10:00: Cálculo Diferencial e Integral I",
-      "[2º-Física] Quarta 11:00-12:00: Cálculo Diferencial e Integral I",
-      "[2º-Física] Quinta 09:00-10:00: Cálculo Diferencial e Integral I",
-      "[3º-Física] Terça 09:00-10:00: Cálculo Diferencial e Integral II",
-      "[3º-Física] Terça 11:00-12:00: Cálculo Diferencial e Integral II",
-      "[3º-Física] Quinta 08:00-09:00: Cálculo Diferencial e Integral II",
-      "[3º-Física] Quinta 10:00-11:00: Cálculo Diferencial e Integral II",
-      "[4º-Física] Terça 10:00-11:00: Cálculo Diferencial e Integral III"
+      "[2º-Biologia] Quarta 15:00-16:00: Introdução à Matemática",
+      "[2º-Física] Segunda 09:00-10:00: Cálculo Diferencial e Integral I",
+      "[2º-Física] Segunda 11:00-12:00: Cálculo Diferencial e Integral I",
+      "[2º-Física] Terça 09:00-10:00: Cálculo Diferencial e Integral I",
+      "[4º-Física] Quarta 09:00-10:00: Cálculo Diferencial e Integral III",
+      "[4º-Física] Quinta 10:00-11:00: Cálculo Diferencial e Integral III"
     ],
     "Rafael Jorge Pontes Diógenes": [],
     "Tatiana Skoraia": [
-      "[2º-Matemática] Segunda 11:00-12:00: Lógica, Conjuntos e Funções",
-      "[2º-Matemática] Quarta 11:00-12:00: Lógica, Conjuntos e Funções",
-      "[2º-Matemática] Quinta 11:00-12:00: Geometria Analítica",
-      "[2º-Matemática] Sexta 16:00-17:00: Geometria Analítica",
-      "[4º-Matemática] Quinta 15:00-16:00: Introdução à Estatística",
-      "[6º-Matemática] Segunda 10:00-11:00: Cálculo Numérico",
-      "[6º-Matemática] Terça 14:00-15:00: Álgebra Linear I",
-      "[6º-Matemática] Quarta 10:00-11:00: Estágio Supervisionado I",
-      "[6º-Matemática] Quinta 09:00-10:00: Álgebra Linear I",
-      "[6º-Matemática] Quinta 16:00-17:00: Estágio Supervisionado I",
-      "[6º-Matemática] Sexta 14:00-15:00: Cálculo Numérico",
-      "[8º-Matemática] Segunda 16:00-17:00: Estágio Supervisionado III",
-      "[8º-Matemática] Terça 15:00-16:00: Optativa I",
-      "[8º-Matemática] Quarta 09:00-10:00: Estágio Supervisionado III",
-      "[8º-Matemática] Quarta 14:00-15:00: Optativa I",
-      "[8º-Matemática] Quinta 08:00-09:00: Estágio Supervisionado III",
-      "[8º-Matemática] Sexta 09:00-10:00: Estruturas Algébricas II",
-      "[8º-Matemática] Sexta 15:00-16:00: Análise na Reta I"
+      "[2º-Matemática] Segunda 10:00-11:00: Geometria Analítica",
+      "[2º-Matemática] Quarta 10:00-11:00: Lógica, Conjuntos e Funções",
+      "[2º-Matemática] Quinta 16:00-17:00: Geometria Analítica",
+      "[2º-Matemática] Sexta 10:00-11:00: Lógica, Conjuntos e Funções",
+      "[4º-Matemática] Terça 09:00-10:00: Cálculo Diferencial e Integral II",
+      "[4º-Matemática] Terça 15:00-16:00: Introdução à Estatística",
+      "[4º-Matemática] Quinta 09:00-10:00: Cálculo Diferencial e Integral II",
+      "[6º-Matemática] Segunda 09:00-10:00: Teoria dos Números",
+      "[6º-Matemática] Segunda 15:00-16:00: Cálculo Numérico",
+      "[6º-Matemática] Terça 10:00-11:00: Estágio Supervisionado I",
+      "[6º-Matemática] Terça 16:00-17:00: Álgebra Linear I",
+      "[6º-Matemática] Quinta 10:00-11:00: Teoria dos Números",
+      "[6º-Matemática] Sexta 09:00-10:00: Estágio Supervisionado I",
+      "[8º-Matemática] Segunda 08:00-09:00: Análise na Reta I",
+      "[8º-Matemática] Segunda 11:00-12:00: Optativa I",
+      "[8º-Matemática] Quarta 11:00-12:00: Análise na Reta I",
+      "[8º-Matemática] Quarta 14:00-15:00: Estágio Supervisionado III",
+      "[8º-Matemática] Quinta 14:00-15:00: Estruturas Algébricas II",
+      "[8º-Matemática] Sexta 15:00-16:00: Estágio Supervisionado III"
     ],
     "Weslley Marinho Lozório": []
   },
   "resultado_grade_por_semestre": {
     "Biologia|2": {
-      "Segunda": {
+      "Quarta": {
         "08:00-09:00": "—",
-        "09:00-10:00": "Introdução à Matemática",
-        "10:00-11:00": "Introdução à Matemática",
-        "11:00-12:00": "Introdução à Matemática",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "—",
+        "09:00-10:00": "—",
+        "10:00-11:00": "—",
+        "11:00-12:00": "—",
+        "14:00-15:00": "Introdução à Matemática",
+        "15:00-16:00": "Introdução à Matemática",
+        "16:00-17:00": "Introdução à Matemática",
         "17:00-18:00": "—"
       }
     },
     "Física|2": {
-      "Quarta": {
+      "Segunda": {
         "08:00-09:00": "—",
         "09:00-10:00": "Cálculo Diferencial e Integral I",
         "10:00-11:00": "Cálculo Diferencial e Integral I",
@@ -735,7 +720,7 @@
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
-      "Quinta": {
+      "Terça": {
         "08:00-09:00": "Cálculo Diferencial e Integral I",
         "09:00-10:00": "Cálculo Diferencial e Integral I",
         "10:00-11:00": "Cálculo Diferencial e Integral I",
@@ -746,44 +731,22 @@
         "17:00-18:00": "—"
       }
     },
-    "Física|3": {
-      "Terça": {
+    "Física|4": {
+      "Quarta": {
         "08:00-09:00": "—",
-        "09:00-10:00": "Cálculo Diferencial e Integral II",
-        "10:00-11:00": "Cálculo Diferencial e Integral II",
-        "11:00-12:00": "Cálculo Diferencial e Integral II",
+        "09:00-10:00": "Cálculo Diferencial e Integral III",
+        "10:00-11:00": "Cálculo Diferencial e Integral III",
+        "11:00-12:00": "—",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Quinta": {
-        "08:00-09:00": "Cálculo Diferencial e Integral II",
-        "09:00-10:00": "Cálculo Diferencial e Integral II",
-        "10:00-11:00": "Cálculo Diferencial e Integral II",
-        "11:00-12:00": "—",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      }
-    },
-    "Física|4": {
-      "Terça": {
         "08:00-09:00": "—",
-        "09:00-10:00": "Cálculo Diferencial e Integral III",
+        "09:00-10:00": "—",
         "10:00-11:00": "Cálculo Diferencial e Integral III",
-        "11:00-12:00": "—",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Sexta": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "Cálculo Diferencial e Integral III",
-        "10:00-11:00": "Cálculo Diferencial e Integral III",
-        "11:00-12:00": "—",
+        "11:00-12:00": "Cálculo Diferencial e Integral III",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
         "16:00-17:00": "—",
@@ -792,53 +755,53 @@
     },
     "Matemática|2": {
       "Segunda": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "Lógica, Conjuntos e Funções",
-        "10:00-11:00": "Lógica, Conjuntos e Funções",
-        "11:00-12:00": "Lógica, Conjuntos e Funções",
-        "14:00-15:00": "Leitura e Produção de Texto II",
-        "15:00-16:00": "Leitura e Produção de Texto II",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Terça": {
-        "08:00-09:00": "Práticas Educativas I",
-        "09:00-10:00": "Práticas Educativas I",
-        "10:00-11:00": "Práticas Educativas I",
+        "08:00-09:00": "Geometria Analítica",
+        "09:00-10:00": "Geometria Analítica",
+        "10:00-11:00": "Geometria Analítica",
         "11:00-12:00": "—",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
-      "Quarta": {
+      "Terça": {
         "08:00-09:00": "—",
+        "09:00-10:00": "—",
+        "10:00-11:00": "Leitura e Produção de Texto II",
+        "11:00-12:00": "Leitura e Produção de Texto II",
+        "14:00-15:00": "Fundamentos da Educação",
+        "15:00-16:00": "Fundamentos da Educação",
+        "16:00-17:00": "Fundamentos da Educação",
+        "17:00-18:00": "—"
+      },
+      "Quarta": {
+        "08:00-09:00": "Lógica, Conjuntos e Funções",
         "09:00-10:00": "Lógica, Conjuntos e Funções",
         "10:00-11:00": "Lógica, Conjuntos e Funções",
-        "11:00-12:00": "Lógica, Conjuntos e Funções",
-        "14:00-15:00": "Leitura e Produção de Texto II",
-        "15:00-16:00": "Leitura e Produção de Texto II",
+        "11:00-12:00": "—",
+        "14:00-15:00": "—",
+        "15:00-16:00": "—",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Quinta": {
         "08:00-09:00": "—",
-        "09:00-10:00": "Geometria Analítica",
-        "10:00-11:00": "Geometria Analítica",
-        "11:00-12:00": "Geometria Analítica",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Sexta": {
-        "08:00-09:00": "Fundamentos da Educação",
-        "09:00-10:00": "Fundamentos da Educação",
-        "10:00-11:00": "Fundamentos da Educação",
-        "11:00-12:00": "—",
+        "09:00-10:00": "—",
+        "10:00-11:00": "Leitura e Produção de Texto II",
+        "11:00-12:00": "Leitura e Produção de Texto II",
         "14:00-15:00": "Geometria Analítica",
         "15:00-16:00": "Geometria Analítica",
         "16:00-17:00": "Geometria Analítica",
+        "17:00-18:00": "—"
+      },
+      "Sexta": {
+        "08:00-09:00": "Lógica, Conjuntos e Funções",
+        "09:00-10:00": "Lógica, Conjuntos e Funções",
+        "10:00-11:00": "Lógica, Conjuntos e Funções",
+        "11:00-12:00": "—",
+        "14:00-15:00": "Práticas Educativas I",
+        "15:00-16:00": "Práticas Educativas I",
+        "16:00-17:00": "Práticas Educativas I",
         "17:00-18:00": "—"
       }
     },
@@ -848,39 +811,39 @@
         "09:00-10:00": "Física Geral I",
         "10:00-11:00": "Física Geral I",
         "11:00-12:00": "Física Geral I",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Terça": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "—",
-        "11:00-12:00": "—",
         "14:00-15:00": "Introdução à Estatística",
         "15:00-16:00": "Introdução à Estatística",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
+      "Terça": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "Cálculo Diferencial e Integral II",
+        "10:00-11:00": "Cálculo Diferencial e Integral II",
+        "11:00-12:00": "Cálculo Diferencial e Integral II",
+        "14:00-15:00": "—",
+        "15:00-16:00": "Introdução à Estatística",
+        "16:00-17:00": "Introdução à Estatística",
+        "17:00-18:00": "—"
+      },
       "Quarta": {
-        "08:00-09:00": "Física Geral I",
-        "09:00-10:00": "Física Geral I",
-        "10:00-11:00": "Física Geral I",
-        "11:00-12:00": "—",
+        "08:00-09:00": "—",
+        "09:00-10:00": "Práticas Educativas III",
+        "10:00-11:00": "Práticas Educativas III",
+        "11:00-12:00": "Práticas Educativas III",
         "14:00-15:00": "Psicologia da Educação",
         "15:00-16:00": "Psicologia da Educação",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Quinta": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "Práticas Educativas III",
-        "10:00-11:00": "Práticas Educativas III",
-        "11:00-12:00": "Práticas Educativas III",
-        "14:00-15:00": "—",
-        "15:00-16:00": "Introdução à Estatística",
-        "16:00-17:00": "Introdução à Estatística",
+        "08:00-09:00": "Cálculo Diferencial e Integral II",
+        "09:00-10:00": "Cálculo Diferencial e Integral II",
+        "10:00-11:00": "Cálculo Diferencial e Integral II",
+        "11:00-12:00": "—",
+        "14:00-15:00": "Física Geral I",
+        "15:00-16:00": "Física Geral I",
+        "16:00-17:00": "Física Geral I",
         "17:00-18:00": "—"
       },
       "Sexta": {
@@ -888,34 +851,54 @@
         "09:00-10:00": "—",
         "10:00-11:00": "—",
         "11:00-12:00": "—",
-        "14:00-15:00": "Psicologia da Educação",
+        "14:00-15:00": "—",
         "15:00-16:00": "Psicologia da Educação",
-        "16:00-17:00": "—",
+        "16:00-17:00": "Psicologia da Educação",
         "17:00-18:00": "—"
       }
     },
     "Matemática|6": {
       "Segunda": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "Cálculo Numérico",
-        "11:00-12:00": "Cálculo Numérico",
-        "14:00-15:00": "Física Geral III",
-        "15:00-16:00": "Física Geral III",
-        "16:00-17:00": "Física Geral III",
+        "08:00-09:00": "Teoria dos Números",
+        "09:00-10:00": "Teoria dos Números",
+        "10:00-11:00": "Álgebra Linear I",
+        "11:00-12:00": "Álgebra Linear I",
+        "14:00-15:00": "—",
+        "15:00-16:00": "Cálculo Numérico",
+        "16:00-17:00": "Cálculo Numérico",
         "17:00-18:00": "—"
       },
       "Terça": {
-        "08:00-09:00": "Teoria dos Números",
-        "09:00-10:00": "Teoria dos Números",
-        "10:00-11:00": "—",
+        "08:00-09:00": "Estágio Supervisionado I",
+        "09:00-10:00": "Estágio Supervisionado I",
+        "10:00-11:00": "Estágio Supervisionado I",
         "11:00-12:00": "—",
-        "14:00-15:00": "Álgebra Linear I",
+        "14:00-15:00": "—",
         "15:00-16:00": "Álgebra Linear I",
-        "16:00-17:00": "—",
+        "16:00-17:00": "Álgebra Linear I",
         "17:00-18:00": "—"
       },
       "Quarta": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "Física Geral III",
+        "10:00-11:00": "Física Geral III",
+        "11:00-12:00": "Física Geral III",
+        "14:00-15:00": "—",
+        "15:00-16:00": "—",
+        "16:00-17:00": "—",
+        "17:00-18:00": "—"
+      },
+      "Quinta": {
+        "08:00-09:00": "Cálculo Numérico",
+        "09:00-10:00": "Cálculo Numérico",
+        "10:00-11:00": "Teoria dos Números",
+        "11:00-12:00": "Teoria dos Números",
+        "14:00-15:00": "—",
+        "15:00-16:00": "—",
+        "16:00-17:00": "—",
+        "17:00-18:00": "—"
+      },
+      "Sexta": {
         "08:00-09:00": "—",
         "09:00-10:00": "Estágio Supervisionado I",
         "10:00-11:00": "Estágio Supervisionado I",
@@ -924,77 +907,57 @@
         "15:00-16:00": "Física Geral III",
         "16:00-17:00": "Física Geral III",
         "17:00-18:00": "—"
-      },
-      "Quinta": {
-        "08:00-09:00": "Álgebra Linear I",
-        "09:00-10:00": "Álgebra Linear I",
-        "10:00-11:00": "—",
-        "11:00-12:00": "—",
-        "14:00-15:00": "Estágio Supervisionado I",
-        "15:00-16:00": "Estágio Supervisionado I",
-        "16:00-17:00": "Estágio Supervisionado I",
-        "17:00-18:00": "—"
-      },
-      "Sexta": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "Teoria dos Números",
-        "11:00-12:00": "Teoria dos Números",
-        "14:00-15:00": "Cálculo Numérico",
-        "15:00-16:00": "Cálculo Numérico",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
       }
     },
     "Matemática|8": {
       "Segunda": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "Estruturas Algébricas II",
-        "11:00-12:00": "Estruturas Algébricas II",
-        "14:00-15:00": "—",
-        "15:00-16:00": "Estágio Supervisionado III",
-        "16:00-17:00": "Estágio Supervisionado III",
-        "17:00-18:00": "—"
-      },
-      "Terça": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "—",
-        "11:00-12:00": "—",
-        "14:00-15:00": "Optativa I",
-        "15:00-16:00": "Optativa I",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Quarta": {
-        "08:00-09:00": "Estágio Supervisionado III",
-        "09:00-10:00": "Estágio Supervisionado III",
-        "10:00-11:00": "Análise na Reta I",
-        "11:00-12:00": "Análise na Reta I",
-        "14:00-15:00": "Optativa I",
-        "15:00-16:00": "Optativa I",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Quinta": {
-        "08:00-09:00": "Estágio Supervisionado III",
-        "09:00-10:00": "Estágio Supervisionado III",
-        "10:00-11:00": "Estágio Supervisionado III",
-        "11:00-12:00": "—",
+        "08:00-09:00": "Análise na Reta I",
+        "09:00-10:00": "Análise na Reta I",
+        "10:00-11:00": "Optativa I",
+        "11:00-12:00": "Optativa I",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
-      "Sexta": {
-        "08:00-09:00": "Estruturas Algébricas II",
-        "09:00-10:00": "Estruturas Algébricas II",
+      "Terça": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "—",
+        "10:00-11:00": "Estruturas Algébricas II",
+        "11:00-12:00": "Estruturas Algébricas II",
+        "14:00-15:00": "Estágio Supervisionado III",
+        "15:00-16:00": "Estágio Supervisionado III",
+        "16:00-17:00": "—",
+        "17:00-18:00": "—"
+      },
+      "Quarta": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "—",
+        "10:00-11:00": "Análise na Reta I",
+        "11:00-12:00": "Análise na Reta I",
+        "14:00-15:00": "Estágio Supervisionado III",
+        "15:00-16:00": "Estágio Supervisionado III",
+        "16:00-17:00": "Estágio Supervisionado III",
+        "17:00-18:00": "—"
+      },
+      "Quinta": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "—",
         "10:00-11:00": "—",
         "11:00-12:00": "—",
-        "14:00-15:00": "—",
-        "15:00-16:00": "Análise na Reta I",
-        "16:00-17:00": "Análise na Reta I",
+        "14:00-15:00": "Estruturas Algébricas II",
+        "15:00-16:00": "Estruturas Algébricas II",
+        "16:00-17:00": "—",
+        "17:00-18:00": "—"
+      },
+      "Sexta": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "Optativa I",
+        "10:00-11:00": "Optativa I",
+        "11:00-12:00": "—",
+        "14:00-15:00": "Estágio Supervisionado III",
+        "15:00-16:00": "Estágio Supervisionado III",
+        "16:00-17:00": "—",
         "17:00-18:00": "—"
       }
     }
@@ -1044,7 +1007,7 @@
       "Sexta": {
         "08:00-09:00": "—",
         "09:00-10:00": "—",
-        "10:00-11:00": "—",
+        "10:00-11:00": "[8º-Matemática] Optativa I",
         "11:00-12:00": "—",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
@@ -1054,71 +1017,71 @@
     },
     "Danila Fernandes Tavares": {
       "Segunda": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
-        "10:00-11:00": "[8º-Matemática] Estruturas Algébricas II",
-        "11:00-12:00": "[8º-Matemática] Estruturas Algébricas II",
-        "14:00-15:00": "—",
+        "08:00-09:00": "[2º-Matemática] Geometria Analítica",
+        "09:00-10:00": "[8º-Matemática] Análise na Reta I",
+        "10:00-11:00": "[6º-Matemática] Álgebra Linear I",
+        "11:00-12:00": "—",
+        "14:00-15:00": "[4º-Matemática] Introdução à Estatística",
         "15:00-16:00": "—",
-        "16:00-17:00": "—",
+        "16:00-17:00": "[6º-Matemática] Cálculo Numérico",
         "17:00-18:00": "—"
       },
       "Terça": {
-        "08:00-09:00": "[6º-Matemática] Teoria dos Números",
-        "09:00-10:00": "—",
-        "10:00-11:00": "—",
-        "11:00-12:00": "—",
-        "14:00-15:00": "[4º-Matemática] Introdução à Estatística",
-        "15:00-16:00": "[6º-Matemática] Álgebra Linear I",
-        "16:00-17:00": "—",
+        "08:00-09:00": "—",
+        "09:00-10:00": "[6º-Matemática] Estágio Supervisionado I",
+        "10:00-11:00": "[4º-Matemática] Cálculo Diferencial e Integral II",
+        "11:00-12:00": "[8º-Matemática] Estruturas Algébricas II",
+        "14:00-15:00": "—",
+        "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III",
+        "16:00-17:00": "[4º-Matemática] Introdução à Estatística",
         "17:00-18:00": "—"
       },
       "Quarta": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
-        "10:00-11:00": "[8º-Matemática] Análise na Reta I",
-        "11:00-12:00": "[6º-Matemática] Estágio Supervisionado I",
+        "08:00-09:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+        "09:00-10:00": "—",
+        "10:00-11:00": "—",
+        "11:00-12:00": "—",
         "14:00-15:00": "—",
-        "15:00-16:00": "[8º-Matemática] Optativa I",
+        "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Quinta": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "[2º-Matemática] Geometria Analítica",
-        "10:00-11:00": "[8º-Matemática] Estágio Supervisionado III",
-        "11:00-12:00": "—",
-        "14:00-15:00": "[6º-Matemática] Estágio Supervisionado I",
-        "15:00-16:00": "—",
-        "16:00-17:00": "[4º-Matemática] Introdução à Estatística",
+        "08:00-09:00": "[6º-Matemática] Cálculo Numérico",
+        "09:00-10:00": "—",
+        "10:00-11:00": "[4º-Matemática] Cálculo Diferencial e Integral II",
+        "11:00-12:00": "[6º-Matemática] Teoria dos Números",
+        "14:00-15:00": "[2º-Matemática] Geometria Analítica",
+        "15:00-16:00": "[8º-Matemática] Estruturas Algébricas II",
+        "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Sexta": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "[6º-Matemática] Teoria dos Números",
-        "11:00-12:00": "—",
-        "14:00-15:00": "[2º-Matemática] Geometria Analítica",
-        "15:00-16:00": "[6º-Matemática] Cálculo Numérico",
-        "16:00-17:00": "[8º-Matemática] Análise na Reta I",
+        "08:00-09:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+        "09:00-10:00": "[8º-Matemática] Optativa I",
+        "10:00-11:00": "—",
+        "11:00-12:00": "[6º-Matemática] Estágio Supervisionado I",
+        "14:00-15:00": "—",
+        "15:00-16:00": "—",
+        "16:00-17:00": "—",
         "17:00-18:00": "—"
       }
     },
     "João Francisco da Silva Filho": {
       "Segunda": {
         "08:00-09:00": "—",
-        "09:00-10:00": "[2º-Biologia] Introdução à Matemática",
-        "10:00-11:00": "—",
-        "11:00-12:00": "[2º-Biologia] Introdução à Matemática",
+        "09:00-10:00": "—",
+        "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I",
+        "11:00-12:00": "—",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Terça": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "[4º-Física] Cálculo Diferencial e Integral III",
-        "10:00-11:00": "[3º-Física] Cálculo Diferencial e Integral II",
+        "08:00-09:00": "[2º-Física] Cálculo Diferencial e Integral I",
+        "09:00-10:00": "—",
+        "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I",
         "11:00-12:00": "—",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
@@ -1128,18 +1091,18 @@
       "Quarta": {
         "08:00-09:00": "—",
         "09:00-10:00": "—",
-        "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I",
+        "10:00-11:00": "[4º-Física] Cálculo Diferencial e Integral III",
         "11:00-12:00": "—",
-        "14:00-15:00": "—",
+        "14:00-15:00": "[2º-Biologia] Introdução à Matemática",
         "15:00-16:00": "—",
-        "16:00-17:00": "—",
+        "16:00-17:00": "[2º-Biologia] Introdução à Matemática",
         "17:00-18:00": "—"
       },
       "Quinta": {
-        "08:00-09:00": "[2º-Física] Cálculo Diferencial e Integral I",
-        "09:00-10:00": "[3º-Física] Cálculo Diferencial e Integral II",
-        "10:00-11:00": "[2º-Física] Cálculo Diferencial e Integral I",
-        "11:00-12:00": "—",
+        "08:00-09:00": "—",
+        "09:00-10:00": "—",
+        "10:00-11:00": "—",
+        "11:00-12:00": "[4º-Física] Cálculo Diferencial e Integral III",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
         "16:00-17:00": "—",
@@ -1147,8 +1110,8 @@
       },
       "Sexta": {
         "08:00-09:00": "—",
-        "09:00-10:00": "[4º-Física] Cálculo Diferencial e Integral III",
-        "10:00-11:00": "[4º-Física] Cálculo Diferencial e Integral III",
+        "09:00-10:00": "—",
+        "10:00-11:00": "—",
         "11:00-12:00": "—",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
@@ -1210,78 +1173,58 @@
     },
     "Lucas Siebra Rocha": {
       "Segunda": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
-        "11:00-12:00": "[6º-Matemática] Cálculo Numérico",
+        "08:00-09:00": "[6º-Matemática] Teoria dos Números",
+        "09:00-10:00": "[2º-Matemática] Geometria Analítica",
+        "10:00-11:00": "[8º-Matemática] Optativa I",
+        "11:00-12:00": "[6º-Matemática] Álgebra Linear I",
         "14:00-15:00": "—",
-        "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Terça": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "[6º-Matemática] Teoria dos Números",
-        "10:00-11:00": "—",
-        "11:00-12:00": "—",
-        "14:00-15:00": "[8º-Matemática] Optativa I",
         "15:00-16:00": "[4º-Matemática] Introdução à Estatística",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
-      "Quarta": {
-        "08:00-09:00": "[8º-Matemática] Estágio Supervisionado III",
-        "09:00-10:00": "[6º-Matemática] Estágio Supervisionado I",
-        "10:00-11:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
-        "11:00-12:00": "[8º-Matemática] Análise na Reta I",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
+      "Terça": {
+        "08:00-09:00": "[6º-Matemática] Estágio Supervisionado I",
+        "09:00-10:00": "—",
+        "10:00-11:00": "[8º-Matemática] Estruturas Algébricas II",
+        "11:00-12:00": "[4º-Matemática] Cálculo Diferencial e Integral II",
+        "14:00-15:00": "[8º-Matemática] Estágio Supervisionado III",
+        "15:00-16:00": "[6º-Matemática] Álgebra Linear I",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
-      "Quinta": {
-        "08:00-09:00": "[6º-Matemática] Álgebra Linear I",
-        "09:00-10:00": "[8º-Matemática] Estágio Supervisionado III",
-        "10:00-11:00": "[2º-Matemática] Geometria Analítica",
+      "Quarta": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+        "10:00-11:00": "[8º-Matemática] Análise na Reta I",
         "11:00-12:00": "—",
         "14:00-15:00": "—",
-        "15:00-16:00": "[6º-Matemática] Estágio Supervisionado I",
+        "15:00-16:00": "—",
+        "16:00-17:00": "[8º-Matemática] Estágio Supervisionado III",
+        "17:00-18:00": "—"
+      },
+      "Quinta": {
+        "08:00-09:00": "[4º-Matemática] Cálculo Diferencial e Integral II",
+        "09:00-10:00": "[6º-Matemática] Cálculo Numérico",
+        "10:00-11:00": "—",
+        "11:00-12:00": "—",
+        "14:00-15:00": "—",
+        "15:00-16:00": "[2º-Matemática] Geometria Analítica",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Sexta": {
-        "08:00-09:00": "[8º-Matemática] Estruturas Algébricas II",
-        "09:00-10:00": "—",
-        "10:00-11:00": "—",
-        "11:00-12:00": "[6º-Matemática] Teoria dos Números",
-        "14:00-15:00": "—",
-        "15:00-16:00": "[2º-Matemática] Geometria Analítica",
+        "08:00-09:00": "—",
+        "09:00-10:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+        "10:00-11:00": "[6º-Matemática] Estágio Supervisionado I",
+        "11:00-12:00": "—",
+        "14:00-15:00": "[8º-Matemática] Estágio Supervisionado III",
+        "15:00-16:00": "—",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       }
     },
     "Marcelo Dário dos Santos Amaral": {
       "Segunda": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "[2º-Biologia] Introdução à Matemática",
-        "11:00-12:00": "—",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Terça": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "[3º-Física] Cálculo Diferencial e Integral II",
-        "10:00-11:00": "[4º-Física] Cálculo Diferencial e Integral III",
-        "11:00-12:00": "[3º-Física] Cálculo Diferencial e Integral II",
-        "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "—",
-        "17:00-18:00": "—"
-      },
-      "Quarta": {
         "08:00-09:00": "—",
         "09:00-10:00": "[2º-Física] Cálculo Diferencial e Integral I",
         "10:00-11:00": "—",
@@ -1291,10 +1234,30 @@
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
-      "Quinta": {
-        "08:00-09:00": "[3º-Física] Cálculo Diferencial e Integral II",
+      "Terça": {
+        "08:00-09:00": "—",
         "09:00-10:00": "[2º-Física] Cálculo Diferencial e Integral I",
-        "10:00-11:00": "[3º-Física] Cálculo Diferencial e Integral II",
+        "10:00-11:00": "—",
+        "11:00-12:00": "—",
+        "14:00-15:00": "—",
+        "15:00-16:00": "—",
+        "16:00-17:00": "—",
+        "17:00-18:00": "—"
+      },
+      "Quarta": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "[4º-Física] Cálculo Diferencial e Integral III",
+        "10:00-11:00": "—",
+        "11:00-12:00": "—",
+        "14:00-15:00": "—",
+        "15:00-16:00": "[2º-Biologia] Introdução à Matemática",
+        "16:00-17:00": "—",
+        "17:00-18:00": "—"
+      },
+      "Quinta": {
+        "08:00-09:00": "—",
+        "09:00-10:00": "—",
+        "10:00-11:00": "[4º-Física] Cálculo Diferencial e Integral III",
         "11:00-12:00": "—",
         "14:00-15:00": "—",
         "15:00-16:00": "—",
@@ -1366,53 +1329,53 @@
     },
     "Tatiana Skoraia": {
       "Segunda": {
-        "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "[6º-Matemática] Cálculo Numérico",
-        "11:00-12:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+        "08:00-09:00": "[8º-Matemática] Análise na Reta I",
+        "09:00-10:00": "[6º-Matemática] Teoria dos Números",
+        "10:00-11:00": "[2º-Matemática] Geometria Analítica",
+        "11:00-12:00": "[8º-Matemática] Optativa I",
         "14:00-15:00": "—",
-        "15:00-16:00": "—",
-        "16:00-17:00": "[8º-Matemática] Estágio Supervisionado III",
+        "15:00-16:00": "[6º-Matemática] Cálculo Numérico",
+        "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Terça": {
         "08:00-09:00": "—",
-        "09:00-10:00": "—",
-        "10:00-11:00": "—",
+        "09:00-10:00": "[4º-Matemática] Cálculo Diferencial e Integral II",
+        "10:00-11:00": "[6º-Matemática] Estágio Supervisionado I",
         "11:00-12:00": "—",
-        "14:00-15:00": "[6º-Matemática] Álgebra Linear I",
-        "15:00-16:00": "[8º-Matemática] Optativa I",
-        "16:00-17:00": "—",
+        "14:00-15:00": "—",
+        "15:00-16:00": "[4º-Matemática] Introdução à Estatística",
+        "16:00-17:00": "[6º-Matemática] Álgebra Linear I",
         "17:00-18:00": "—"
       },
       "Quarta": {
         "08:00-09:00": "—",
-        "09:00-10:00": "[8º-Matemática] Estágio Supervisionado III",
-        "10:00-11:00": "[6º-Matemática] Estágio Supervisionado I",
-        "11:00-12:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
-        "14:00-15:00": "[8º-Matemática] Optativa I",
+        "09:00-10:00": "—",
+        "10:00-11:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
+        "11:00-12:00": "[8º-Matemática] Análise na Reta I",
+        "14:00-15:00": "[8º-Matemática] Estágio Supervisionado III",
         "15:00-16:00": "—",
         "16:00-17:00": "—",
         "17:00-18:00": "—"
       },
       "Quinta": {
-        "08:00-09:00": "[8º-Matemática] Estágio Supervisionado III",
-        "09:00-10:00": "[6º-Matemática] Álgebra Linear I",
-        "10:00-11:00": "—",
-        "11:00-12:00": "[2º-Matemática] Geometria Analítica",
-        "14:00-15:00": "—",
-        "15:00-16:00": "[4º-Matemática] Introdução à Estatística",
-        "16:00-17:00": "[6º-Matemática] Estágio Supervisionado I",
+        "08:00-09:00": "—",
+        "09:00-10:00": "[4º-Matemática] Cálculo Diferencial e Integral II",
+        "10:00-11:00": "[6º-Matemática] Teoria dos Números",
+        "11:00-12:00": "—",
+        "14:00-15:00": "[8º-Matemática] Estruturas Algébricas II",
+        "15:00-16:00": "—",
+        "16:00-17:00": "[2º-Matemática] Geometria Analítica",
         "17:00-18:00": "—"
       },
       "Sexta": {
         "08:00-09:00": "—",
-        "09:00-10:00": "[8º-Matemática] Estruturas Algébricas II",
-        "10:00-11:00": "—",
+        "09:00-10:00": "[6º-Matemática] Estágio Supervisionado I",
+        "10:00-11:00": "[2º-Matemática] Lógica, Conjuntos e Funções",
         "11:00-12:00": "—",
-        "14:00-15:00": "[6º-Matemática] Cálculo Numérico",
-        "15:00-16:00": "[8º-Matemática] Análise na Reta I",
-        "16:00-17:00": "[2º-Matemática] Geometria Analítica",
+        "14:00-15:00": "—",
+        "15:00-16:00": "[8º-Matemática] Estágio Supervisionado III",
+        "16:00-17:00": "—",
         "17:00-18:00": "—"
       }
     },
@@ -1475,32 +1438,35 @@
     "niveis": {
       "Introdução à Matemática": 1,
       "Cálculo Diferencial e Integral I": 1,
-      "Cálculo Diferencial e Integral II": 1,
       "Cálculo Diferencial e Integral III": 1,
       "Lógica, Conjuntos e Funções": 1,
       "Geometria Analítica": 1,
       "Leitura e Produção de Texto II": 1,
-      "Práticas Educativas I": 1,
       "Fundamentos da Educação": 1,
+      "Práticas Educativas I": 1,
       "Física Geral I": 1,
-      "Psicologia da Educação": 1,
+      "Cálculo Diferencial e Integral II": 1,
       "Introdução à Estatística": 1,
+      "Psicologia da Educação": 1,
       "Práticas Educativas III": 1,
-      "Estágio Supervisionado I": 1,
       "Física Geral III": 1,
-      "Cálculo Numérico": 1,
+      "Estágio Supervisionado I": 1,
       "Teoria dos Números": 1,
       "Álgebra Linear I": 1,
+      "Cálculo Numérico": 1,
       "Estágio Supervisionado III": 1,
       "Optativa I": 1,
-      "Estruturas Algébricas II": 1,
-      "Análise na Reta I": 1
+      "Análise na Reta I": 1,
+      "Estruturas Algébricas II": 1
     },
     "fase1_ok": true,
     "fase2_ok": true,
-    "professores_sobrecarga": [],
+    "professores_sobrecarga": [
+      "Danila Fernandes Tavares"
+    ],
     "disciplinas_sem_professor": [],
-    "score": 199.52
+    "score": 210.76,
+    "nivel_max_usuario": 1
   },
   "tema": "claro"
 }

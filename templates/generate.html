@@ -345,23 +345,57 @@ function iniciarGeracao(){
     var overlay=document.getElementById('loadingOverlay');
     var btn=document.getElementById('gerarGradeBtn');
     var err=document.getElementById('erroMsg');
+    var btnLabelOriginal=btn.innerHTML;
+
     document.querySelectorAll('.step-loading').forEach(function(s){
         s.classList.remove('done','active');
         s.textContent='⏳ '+s.textContent.replace(/^[⏳✓▶]\s*/,'');
     });
-    overlay.classList.add('show'); btn.disabled=true; err.style.display='none';
+    overlay.classList.add('show');
+    btn.disabled=true;
+    btn.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Gerando...';
+    err.style.display='none';
     animarSteps();
-    fetch('/iniciar_geracao',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+
+    // Timeout de segurança (30s) para evitar loading infinito
+    var safetyTimeout = setTimeout(function(){
         overlay.classList.remove('show');
-        if(d.status==='sucesso'){ location.href='/resultados'; }
-        else{
-            var msg='❌ '+(d.mensagem||'Erro');
-            if(d.erros&&d.erros.length){msg+='<ul class="mt-2 mb-0">';d.erros.forEach(function(e){msg+='<li>'+e+'</li>';});msg+='</ul>';}
-            err.innerHTML=msg; err.style.display=''; btn.disabled=false;
-        }
-    }).catch(function(){
-        overlay.classList.remove('show'); err.textContent='❌ Erro na requisição.'; err.style.display=''; btn.disabled=false;
-    });
+        btn.disabled=false; btn.innerHTML=btnLabelOriginal;
+        err.innerHTML='⚠️ <strong>Tempo esgotado.</strong> A geração demorou mais de 30 segundos. Tente reduzir o número de disciplinas ou aumentar a flexibilidade nas configurações avançadas.';
+        err.style.display='';
+    }, 30000);
+
+    fetch('/iniciar_geracao',{method:'POST'})
+        .then(function(r){
+            if(!r.ok) throw new Error('Servidor retornou status ' + r.status);
+            return r.json();
+        })
+        .then(function(d){
+            clearTimeout(safetyTimeout);
+            overlay.classList.remove('show');
+            if(d.status==='sucesso'){
+                // Pequeno delay para o usuário ver "✓" no último step antes de redirecionar
+                setTimeout(function(){ location.href='/resultados'; }, 300);
+            }else{
+                btn.disabled=false; btn.innerHTML=btnLabelOriginal;
+                var msg='<strong>❌ '+(d.mensagem||'Falha na geração')+'</strong>';
+                if(d.erros&&d.erros.length){
+                    msg+='<ul class="mt-2 mb-0">';
+                    d.erros.forEach(function(e){msg+='<li>'+e+'</li>';});
+                    msg+='</ul>';
+                }
+                msg+='<hr><small class="d-block">Verifique as configurações em <a href="/config" class="alert-link">Configurações</a> ou as seleções em <a href="/" class="alert-link">Seleção</a>.</small>';
+                err.innerHTML=msg;
+                err.style.display='';
+            }
+        })
+        .catch(function(e){
+            clearTimeout(safetyTimeout);
+            overlay.classList.remove('show');
+            btn.disabled=false; btn.innerHTML=btnLabelOriginal;
+            err.innerHTML='<strong>❌ Erro de comunicação:</strong> '+(e.message||'desconhecido')+'.<br><small>Verifique se o servidor está rodando e tente novamente.</small>';
+            err.style.display='';
+        });
 }
 var bg=document.getElementById('gerarGradeBtn'); if(bg) bg.addEventListener('click',iniciarGeracao);
 
