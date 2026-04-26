@@ -132,7 +132,7 @@
     {% endfor %}
     </div>
 
-    <div class="d-flex gap-2 mt-3 mb-3 p-3"
+    <div class="d-flex gap-2 mt-3 mb-3 p-3 save-bar-sticky"
          style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
                 position:sticky;bottom:20px;z-index:100">
         <div class="flex-1 align-self-center">
@@ -199,7 +199,7 @@
         </div>
         {% endfor %}
     </div>
-    <div class="d-flex gap-2 mt-4 mb-3 p-3"
+    <div class="d-flex gap-2 mt-4 mb-3 p-3 save-bar-sticky"
          style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
                 position:sticky;bottom:20px;z-index:100">
         <div class="flex-1 align-self-center">
@@ -436,9 +436,9 @@
     </div>
 </div>
 
-<div class="d-flex gap-2 mt-4 mb-5">
+<div class="d-flex gap-2 mt-4 mb-5" style="padding-bottom:60px">
     <a href="/" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Voltar</a>
-    <a href="/generate" class="btn btn-primary"><i class="fas fa-bolt me-2"></i>Ir para Geração</a>
+    <!-- "Próximo" é flutuante (definido em base.html) -->
 </div>
 
 

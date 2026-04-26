@@ -30,7 +30,7 @@
         </div>
     </nav>
 
-    <div class="container-fluid px-4 mt-3">
+    <div class="container-fluid px-4 mt-3 page-with-floating">
         {% block content %}{% endblock %}
     </div>
 
@@ -43,6 +43,12 @@
             </div>
         </div>
     </div>
+
+    <!-- Botão flutuante "Próximo" — sempre visível no canto inferior direito -->
+    <a href="#" id="floatingNextBtn" class="floating-next" style="display:none" aria-label="Ir para próximo passo">
+        <span id="floatingNextLabel">Próximo</span>
+        <i class="fas fa-arrow-right ms-2"></i>
+    </a>
 
     <!-- Input oculto (usado pela página Seleção) -->
     <input type="file" id="importFile" style="display:none;" accept=".json">
@@ -113,6 +119,105 @@
                     .catch(function () { alert('❌ Erro ao importar'); });
             });
         }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // BOTÃO FLUTUANTE "PRÓXIMO" — lógica central de fluxo
+        // ═══════════════════════════════════════════════════════════════════
+        (function() {
+            var btn = document.getElementById('floatingNextBtn');
+            var label = document.getElementById('floatingNextLabel');
+            if (!btn || !label) return;
+
+            var path = window.location.pathname;
+
+            function setNext(url, text) {
+                btn.setAttribute('href', url);
+                label.textContent = text;
+                btn.style.display = 'inline-flex';
+            }
+            function hideNext() { btn.style.display = 'none'; }
+
+            function updateFromTab(tabName) {
+                var map = {
+                    'disciplinas': { url: '/config#tab-professores', text: 'Próximo: Professores' },
+                    'professores': { url: '/config#tab-choque',      text: 'Próximo: Conflitos' },
+                    'choque':      { url: '/config#tab-avancadas',   text: 'Próximo: Avançadas' },
+                    'avancadas':   { url: '/generate',               text: 'Próximo: Gerar Grade' }
+                };
+                var next = map[tabName];
+                if (next) setNext(next.url, next.text);
+                else hideNext();
+
+                // Ajustar posição do botão flutuante:
+                // abas com barra "Salvar" sticky (disciplinas, professores) → bottom maior
+                // abas sem barra (choque, avancadas) → posição padrão (24px)
+                var temBarraSalvar = (tabName === 'disciplinas' || tabName === 'professores');
+                btn.classList.toggle('no-sticky', !temBarraSalvar);
+            }
+
+            // Função para ativar uma aba programaticamente
+            function ativarAba(tabName) {
+                var link = document.querySelector('.nav-link[data-tab="' + tabName + '"]');
+                if (link) {
+                    link.click();  // dispara handler de troca de aba (que existe em config.html)
+                    // Scroll suave até o topo das abas
+                    var nav = document.getElementById('configTabs');
+                    if (nav) {
+                        setTimeout(function() {
+                            nav.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 50);
+                    }
+                    return true;
+                }
+                return false;
+            }
+
+            if (path === '/' || path === '/index') {
+                setNext('/config', 'Próximo: Configurar');
+                btn.classList.add('no-sticky');  // index não tem barra Salvar sticky
+            }
+            else if (path === '/config') {
+                // Aba atual via hash ou default
+                var activeTab = (window.location.hash || '').replace('#tab-', '') || 'disciplinas';
+                updateFromTab(activeTab);
+
+                // Ao clicar numa aba, atualizar label/url do botão
+                document.querySelectorAll('.nav-link[data-tab]').forEach(function(lnk) {
+                    lnk.addEventListener('click', function() {
+                        var t = this.getAttribute('data-tab');
+                        updateFromTab(t);
+                        history.replaceState(null, '', '#tab-' + t);
+                    });
+                });
+
+                // Ativar aba baseada em hash inicial
+                if (window.location.hash) {
+                    var wantedTab = window.location.hash.replace('#tab-', '');
+                    ativarAba(wantedTab);
+                }
+
+                // ── INTERCEPTAR clique no botão flutuante ──────────────────
+                // Se destino é outra aba dentro do /config, não recarregar página:
+                // simplesmente trocar aba via JS (evita reload e mantém estado).
+                btn.addEventListener('click', function(e) {
+                    var href = btn.getAttribute('href') || '';
+                    if (href.indexOf('/config#tab-') === 0) {
+                        e.preventDefault();
+                        var proxAba = href.replace('/config#tab-', '');
+                        ativarAba(proxAba);
+                        history.replaceState(null, '', '#tab-' + proxAba);
+                        updateFromTab(proxAba);
+                    }
+                    // Para /generate e outras URLs, deixa o link funcionar normalmente
+                });
+            }
+            else if (path === '/generate' || path === '/resultados') {
+                hideNext();  // fim do fluxo
+            }
+            else {
+                hideNext();
+            }
+        })();
     });
     </script>
 

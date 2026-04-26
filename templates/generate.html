@@ -346,6 +346,9 @@ function iniciarGeracao(){
     var btn=document.getElementById('gerarGradeBtn');
     var err=document.getElementById('erroMsg');
     var btnLabelOriginal=btn.innerHTML;
+    var t0 = Date.now();
+
+    console.log('[Combinix] Iniciando geração de grade...');
 
     document.querySelectorAll('.step-loading').forEach(function(s){
         s.classList.remove('done','active');
@@ -363,7 +366,40 @@ function iniciarGeracao(){
         btn.disabled=false; btn.innerHTML=btnLabelOriginal;
         err.innerHTML='⚠️ <strong>Tempo esgotado.</strong> A geração demorou mais de 30 segundos. Tente reduzir o número de disciplinas ou aumentar a flexibilidade nas configurações avançadas.';
         err.style.display='';
+        console.error('[Combinix] Timeout de 30s atingido');
     }, 30000);
+
+    function finalizarSucesso(d) {
+        clearTimeout(safetyTimeout);
+        var elapsed = Date.now() - t0;
+        var rel = d.relatorio || {};
+        console.log('[Combinix] Geração concluída em', elapsed, 'ms');
+        console.log('[Combinix] Score:', rel.score, '— Níveis usados:', rel.niveis);
+        if (rel.avisos && rel.avisos.length) console.warn('[Combinix] Avisos:', rel.avisos);
+
+        // Loading mínimo de 1500ms para passar percepção de processamento real
+        var minDelay = Math.max(0, 1500 - elapsed);
+        setTimeout(function() {
+            overlay.classList.remove('show');
+            location.href = '/resultados';
+        }, minDelay + 200);
+    }
+
+    function finalizarErro(d) {
+        clearTimeout(safetyTimeout);
+        overlay.classList.remove('show');
+        btn.disabled=false; btn.innerHTML=btnLabelOriginal;
+        var msg='<strong>❌ '+(d.mensagem||'Falha na geração')+'</strong>';
+        if(d.erros&&d.erros.length){
+            msg+='<ul class="mt-2 mb-0">';
+            d.erros.forEach(function(e){msg+='<li>'+e+'</li>';});
+            msg+='</ul>';
+        }
+        msg+='<hr><small class="d-block">Verifique as configurações em <a href="/config" class="alert-link">Configurações</a> ou as seleções em <a href="/" class="alert-link">Seleção</a>.</small>';
+        err.innerHTML=msg;
+        err.style.display='';
+        console.error('[Combinix] Erro de geração:', d);
+    }
 
     fetch('/iniciar_geracao',{method:'POST'})
         .then(function(r){
@@ -371,23 +407,8 @@ function iniciarGeracao(){
             return r.json();
         })
         .then(function(d){
-            clearTimeout(safetyTimeout);
-            overlay.classList.remove('show');
-            if(d.status==='sucesso'){
-                // Pequeno delay para o usuário ver "✓" no último step antes de redirecionar
-                setTimeout(function(){ location.href='/resultados'; }, 300);
-            }else{
-                btn.disabled=false; btn.innerHTML=btnLabelOriginal;
-                var msg='<strong>❌ '+(d.mensagem||'Falha na geração')+'</strong>';
-                if(d.erros&&d.erros.length){
-                    msg+='<ul class="mt-2 mb-0">';
-                    d.erros.forEach(function(e){msg+='<li>'+e+'</li>';});
-                    msg+='</ul>';
-                }
-                msg+='<hr><small class="d-block">Verifique as configurações em <a href="/config" class="alert-link">Configurações</a> ou as seleções em <a href="/" class="alert-link">Seleção</a>.</small>';
-                err.innerHTML=msg;
-                err.style.display='';
-            }
+            if(d.status==='sucesso') finalizarSucesso(d);
+            else finalizarErro(d);
         })
         .catch(function(e){
             clearTimeout(safetyTimeout);
@@ -395,6 +416,7 @@ function iniciarGeracao(){
             btn.disabled=false; btn.innerHTML=btnLabelOriginal;
             err.innerHTML='<strong>❌ Erro de comunicação:</strong> '+(e.message||'desconhecido')+'.<br><small>Verifique se o servidor está rodando e tente novamente.</small>';
             err.style.display='';
+            console.error('[Combinix] Falha na requisição:', e);
         });
 }
 var bg=document.getElementById('gerarGradeBtn'); if(bg) bg.addEventListener('click',iniciarGeracao);
