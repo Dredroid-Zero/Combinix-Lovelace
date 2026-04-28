@@ -39,11 +39,18 @@
             <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
                 <i class="fas fa-download me-1"></i>Baixar
             </button>
-            <ul class="dropdown-menu shadow border-0" style="min-width:260px">
-                <li><a class="dropdown-item" href="/download/semestre"><i class="fas fa-graduation-cap me-2 text-primary"></i>Grade por Semestre</a></li>
-                <li><a class="dropdown-item" href="/download/disciplinas"><i class="fas fa-table me-2 text-primary"></i>Grade Combinada</a></li>
-                <li><a class="dropdown-item" href="/download/professores"><i class="fas fa-chalkboard-user me-2 text-success"></i>Grade com Professores</a></li>
-                <li><a class="dropdown-item" href="/download/por_professor"><i class="fas fa-user-clock me-2 text-warning"></i>Grade por Professor</a></li>
+            <ul class="dropdown-menu shadow border-0" style="min-width:280px">
+                <li><h6 class="dropdown-header"><i class="fas fa-file-excel me-1 text-success"></i>Excel (recomendado)</h6></li>
+                <li><a class="dropdown-item fw-bold" href="/download_excel">
+                    <i class="fas fa-file-excel me-2 text-success"></i>Grade Completa em Excel (.xlsx)
+                    <small class="d-block text-muted ms-4">4 abas: por semestre, combinada, com profs, por professor</small>
+                </a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header"><i class="fas fa-code me-1"></i>JSON (avançado)</h6></li>
+                <li><a class="dropdown-item" href="/download/semestre"><i class="fas fa-graduation-cap me-2 text-primary"></i>Por Semestre</a></li>
+                <li><a class="dropdown-item" href="/download/disciplinas"><i class="fas fa-table me-2 text-primary"></i>Combinada</a></li>
+                <li><a class="dropdown-item" href="/download/professores"><i class="fas fa-chalkboard-user me-2 text-success"></i>Com Professores</a></li>
+                <li><a class="dropdown-item" href="/download/por_professor"><i class="fas fa-user-clock me-2 text-warning"></i>Por Professor</a></li>
             </ul>
         </div>
         {% endif %}
@@ -181,21 +188,35 @@
     </div>
 </div>
 
-<!-- ABA: Com Professores -->
+<!-- ABA: Com Professores — uma tabela por grupo (igual à "Por Semestre" mas com prof) -->
 <div id="result-grade-prof" class="result-pane" style="display:none">
-    <div class="card">
-        <div class="card-header"><i class="fas fa-chalkboard-user me-2"></i>Grade com Professores</div>
+{% if grades_com_prof %}
+    {% set gks_cp = [] %}
+    {% for gk in grades_com_prof.keys() %}
+        {% set p = gk.split('|') %}
+        {% set c2 = p[0] if p|length >= 1 else 'Geral' %}
+        {% set s2 = p[1]|int if p|length >= 2 else 0 %}
+        {% if gks_cp.append((c2,s2,gk)) %}{% endif %}
+    {% endfor %}
+    {% for curso,sem,gk in gks_cp|sort %}
+    {% set gs_cp = grades_com_prof[gk] %}
+    <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span><i class="fas fa-chalkboard-user me-2 text-success"></i>
+            <strong>{{ sem }}º SEMESTRE - {{ curso }}</strong>
+            <small class="text-muted ms-2">com professores</small></span>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-bordered grade-table mb-0">
-                    <thead><tr><th style="min-width:100px">Horário</th>{% for dia in grade_professores.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}</tr></thead>
+                    <thead><tr><th style="min-width:100px">Horário</th>{% for dia in gs_cp.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}</tr></thead>
                     <tbody>
                     {% for hora in horarios %}
-                    {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in grade_professores.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
+                    {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in gs_cp.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
                     <tr><td class="mono fw-semibold" style="font-size:.78rem;color:var(--text-muted)">{{ hora }}</td>
-                    {% for dia in grade_professores.keys() %}{% set c=grade_professores[dia][hora] %}
-                    <td class="{% if c!='—' %}slot-filled{% else %}slot-empty{% endif %}">
-                        {% if c!='—' %}<span style="font-size:.72rem;white-space:pre-line">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
+                    {% for dia in gs_cp.keys() %}{% set c = gs_cp[dia][hora] %}
+                    <td class="{% if c != '—' %}slot-filled{% else %}slot-empty{% endif %}">
+                        {% if c != '—' %}<span style="font-size:.72rem;line-height:1.3;white-space:pre-line">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
                     </td>{% endfor %}</tr>
                     {% endfor %}
                     </tbody>
@@ -203,6 +224,10 @@
             </div>
         </div>
     </div>
+    {% endfor %}
+{% else %}
+<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>Sem dados de professores ainda. Configure professores e gere a grade.</div>
+{% endif %}
 </div>
 
 <!-- ABA: Por Professor — GRADE (linhas=horários, colunas=dias) -->
@@ -215,53 +240,52 @@
 Nenhum professor atribuído. <a href="/config" class="alert-link">Configure em Professores →</a></div>
 {% else %}
 
-<!-- Seletor de professor -->
-<div class="mb-3 d-flex align-items-center gap-2">
-    <label class="form-label mb-0 fw-bold">Ver professor:</label>
-    <select id="profSelect" class="form-select form-select-sm" style="max-width:300px">
-        {% for prof, grade_p in grade_por_professor.items() %}
-        {% if horarios_professores.get(prof) %}
-        <option value="{{ prof }}">{{ prof }}</option>
-        {% endif %}{% endfor %}
-    </select>
-</div>
-
 {% for prof, grade_p in grade_por_professor.items() %}
-{% if horarios_professores.get(prof) %}
-<div class="prof-grade-panel" id="pgp-{{ loop.index0 }}" data-prof="{{ prof }}" style="{% if not loop.first %}display:none{% endif %}">
-    <div class="card">
-        <div class="card-header d-flex align-items-center gap-2">
-            <i class="fas fa-user-tie text-primary"></i>
+{% set carga = relatorio.get('carga_por_professor', {}).get(prof, {}) %}
+{% set definida = carga.get('definida', '?') %}
+{% set alocada  = carga.get('alocada', 0) %}
+<div class="card mb-3">
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+            <i class="fas fa-user-tie text-primary me-2"></i>
             <strong>{{ prof }}</strong>
-            <span class="chip ms-auto">{{ horarios_professores.get(prof,[])|length }} aula{{ 's' if horarios_professores.get(prof,[])|length != 1 }}</span>
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-bordered grade-table mb-0">
-                    <thead>
-                        <tr>
-                            <th style="min-width:100px">Horário</th>
-                            {% for dia in grade_p.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for hora in horarios %}
-                    {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in grade_p.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
+        <div class="d-flex gap-2 flex-wrap" style="font-size:.78rem">
+            <span class="chip chip-teal"><i class="fas fa-clock me-1"></i>
+                Carga Definida: <strong>{{ definida }}h/sem</strong>
+            </span>
+            <span class="chip {% if alocada >= definida %}chip-warning{% else %}chip-success{% endif %}">
+                <i class="fas fa-check-circle me-1"></i>
+                Carga Alocada: <strong>{{ alocada }}h/sem</strong>
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered grade-table mb-0">
+                <thead>
                     <tr>
-                        <td class="mono fw-semibold" style="font-size:.78rem;color:var(--text-muted)">{{ hora }}</td>
-                        {% for dia in grade_p.keys() %}{% set c = grade_p[dia][hora] %}
-                        <td class="{% if c != '—' %}slot-filled{% else %}slot-empty{% endif %}">
-                            {% if c != '—' %}<span style="font-size:.73rem">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
-                        </td>{% endfor %}
+                        <th style="min-width:100px">Horário</th>
+                        {% for dia in grade_p.keys() %}<th class="text-center">{{ dia }}</th>{% endfor %}
                     </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                </thead>
+                <tbody>
+                {% for hora in horarios %}
+                {% if loop.index0 == 4 %}<tr><td class="mono text-muted" style="font-size:.76rem">12:00-14:00</td>{% for dia in grade_p.keys() %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.72rem">almoço</td>{% endfor %}</tr>{% endif %}
+                <tr>
+                    <td class="mono fw-semibold" style="font-size:.78rem;color:var(--text-muted)">{{ hora }}</td>
+                    {% for dia in grade_p.keys() %}{% set c = grade_p[dia][hora] %}
+                    <td class="{% if c != '—' %}slot-filled{% else %}slot-empty{% endif %}">
+                        {% if c != '—' %}<span style="font-size:.73rem">{{ c }}</span>{% else %}<span class="text-muted" style="opacity:.35">—</span>{% endif %}
+                    </td>{% endfor %}
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
-{% endif %}{% endfor %}
+{% endfor %}
 {% endif %}
 </div>
 
@@ -319,15 +343,6 @@ document.querySelectorAll('.nav-link[data-rt]').forEach(function(l){
         var t=document.getElementById('result-'+this.getAttribute('data-rt')); if(t) t.style.display='';
     });
 });
-
-// Seletor de professor
-var profSel=document.getElementById('profSelect');
-if(profSel){ profSel.addEventListener('change',function(){
-    var val=this.value;
-    document.querySelectorAll('.prof-grade-panel').forEach(function(p){
-        p.style.display = p.getAttribute('data-prof')===val ? '' : 'none';
-    });
-});}
 
 // Loading steps
 function animarSteps(){

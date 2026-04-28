@@ -1,11 +1,101 @@
 # app.py — Combinix Lovelace · CSP Solver: blocos 2/3 + cascata níveis + sábado 3 estados
-import os, json, random, copy, io, logging
+import os, json, random, copy, io, logging, uuid
 from collections import defaultdict
 from flask import Flask, render_template, request, session, jsonify, send_file
 from persistence import save_state, load_state, reset_state
 
 app = Flask(__name__)
 app.secret_key = 'chave_super_secreta_combinix_lovelace'
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ARMAZENAMENTO DE RESULTADOS — fora da session (evita cookie >4KB)
+# ═══════════════════════════════════════════════════════════════════════════
+# A session armazena APENAS um token UUID (poucos bytes). Os resultados grandes
+# (grades, relatórios) ficam em memória do servidor e persistidos em disco.
+# Isso evita o erro "session cookie too large" que causava tela em branco.
+RESULTADOS_STORE = {}
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+RESULTADOS_FILE = os.path.join(_APP_DIR, 'database', 'resultados.json')
+
+def _load_resultados_from_disk():
+    """
+    Carrega store de resultados do disco (sobrevive reinício do servidor).
+    Resiliente a JSON corrompido — em caso de erro, ignora o arquivo (não crasha).
+    """
+    if not os.path.exists(RESULTADOS_FILE):
+        return
+    try:
+        with open(RESULTADOS_FILE, 'r', encoding='utf-8') as f:
+            content = f.read()
+        if not content.strip():
+            return
+        data = json.loads(content)
+        if isinstance(data, dict):
+            RESULTADOS_STORE.update(data)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
+        logging.warning('[Combinix] resultados.json corrompido, ignorando: %s', e)
+        # Renomear o arquivo corrompido para investigação posterior
+        try:
+            os.replace(RESULTADOS_FILE, RESULTADOS_FILE + '.corrupted')
+        except OSError:
+            pass
+
+def _save_resultados_to_disk():
+    """
+    Persiste store em disco de forma ATÔMICA:
+    escreve em arquivo temporário e usa os.replace (rename atômico).
+    Isso evita 'Extra data' por escritas interrompidas.
+    """
+    import tempfile
+    try:
+        target_dir = os.path.dirname(RESULTADOS_FILE)
+        os.makedirs(target_dir, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=target_dir, prefix='.tmp_res_', suffix='.json')
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(RESULTADOS_STORE, f, ensure_ascii=False)
+                f.flush()
+                try: os.fsync(f.fileno())
+                except OSError: pass
+            os.replace(tmp_path, RESULTADOS_FILE)
+        except Exception:
+            if os.path.exists(tmp_path):
+                try: os.remove(tmp_path)
+                except OSError: pass
+            raise
+    except Exception as e:
+        logging.warning('[Combinix] Falha salvar resultados: %s', e)
+
+def _novo_token():
+    return uuid.uuid4().hex[:16]  # 16 chars (8 bytes) é suficiente
+
+def _store_resultados(dados):
+    """Cria novo token, armazena resultados e retorna o token."""
+    # Limpar resultados anteriores do mesmo usuário
+    token_antigo = session.get('resultado_token')
+    if token_antigo and token_antigo in RESULTADOS_STORE:
+        del RESULTADOS_STORE[token_antigo]
+    token = _novo_token()
+    RESULTADOS_STORE[token] = dados
+    _save_resultados_to_disk()
+    return token
+
+def _get_resultados():
+    """Retorna os resultados do usuário atual, ou {} se não existir/inválido."""
+    token = session.get('resultado_token')
+    if not token or token not in RESULTADOS_STORE:
+        return {}
+    return RESULTADOS_STORE[token]
+
+def _limpar_resultados_usuario():
+    """Remove os resultados do usuário atual do store (mantém o token na sessão em branco)."""
+    token = session.get('resultado_token')
+    if token and token in RESULTADOS_STORE:
+        del RESULTADOS_STORE[token]
+        _save_resultados_to_disk()
+    session.pop('resultado_token', None)
+
+_load_resultados_from_disk()
 
 # ─── Caminhos ABSOLUTOS — funciona independente do diretório de execução ────
 # Sempre relativo ao diretório onde app.py está, não ao diretório de trabalho
@@ -45,9 +135,7 @@ HORARIOS = ['08:00-09:00','09:00-10:00','10:00-11:00','11:00-12:00',
             '14:00-15:00','15:00-16:00','16:00-17:00','17:00-18:00']
 HORARIO_ULTIMO = '17:00-18:00'
 
-DICT_KEYS = {'config_avancadas','resultado_grade_disciplinas','resultado_grade_professores',
-             'resultado_horarios_professores','resultado_grade_por_semestre',
-             'resultado_grade_por_professor','resultado_relatorio'}
+DICT_KEYS = {'config_avancadas'}
 
 # ─── Identidade única ──────────────────────────────────────────────────────
 def disc_uid(d): return '{}|{}|{}'.format(d.get('curso','Geral'),d.get('nome',''),d.get('semestre',''))
@@ -61,13 +149,10 @@ def _cfg_padrao_prof():
     return {'disciplinas_internas':[],'carga_maxima':20,'disponibilidade':[]}
 def _normalizar_avancadas(cfg):
     """Normaliza config_avancadas: bool→estado_sabado, quebrar_blocos legado→nivel_restricao."""
-    # Compat: usar_sabado bool → estado_sabado string
     if 'usar_sabado' in cfg and 'estado_sabado' not in cfg:
         cfg['estado_sabado'] = 'normal' if cfg.pop('usar_sabado') else 'desativado'
     cfg.setdefault('estado_sabado', 'desativado')
-    # Compat: quebrar_blocos legado → remover e usar nível padrão
     cfg.pop('quebrar_blocos', None)
-    # Novo parâmetro: nivel_restricao (1, 2 ou 3) — padrão 3 (flexível)
     nv = cfg.get('nivel_restricao', 3)
     try: nv = int(nv)
     except (TypeError, ValueError): nv = 3
@@ -75,25 +160,32 @@ def _normalizar_avancadas(cfg):
     cfg['nivel_restricao'] = nv
 
 # ─── Persistência ──────────────────────────────────────────────────────────
+# A session agora contém APENAS:
+#   - disciplinas_selecionadas, professores_selecionados
+#   - config_disciplinas, config_professores, grupos_choque, config_avancadas
+#   - resultado_token (UUID curto apontando para RESULTADOS_STORE)
+#   - tema
+# Os resultados GRANDES ficam em RESULTADOS_STORE (em memória + disco).
+_SESSION_KEYS = ['disciplinas_selecionadas', 'professores_selecionados',
+                 'config_disciplinas', 'config_professores',
+                 'grupos_choque', 'config_avancadas']
+
 def auto_save():
-    data = {k:session.get(k,{} if k in DICT_KEYS else [])
-            for k in ['disciplinas_selecionadas','professores_selecionados','config_disciplinas',
-                      'config_professores','grupos_choque','config_avancadas',
-                      'resultado_grade_disciplinas','resultado_grade_professores',
-                      'resultado_horarios_professores','resultado_grade_por_semestre',
-                      'resultado_grade_por_professor','resultado_relatorio']}
-    data['tema'] = session.get('tema','claro'); save_state(data)
+    data = {k: session.get(k, {} if k in DICT_KEYS else []) for k in _SESSION_KEYS}
+    data['tema'] = session.get('tema', 'claro')
+    data['resultado_token'] = session.get('resultado_token', '')
+    save_state(data)
 
 def carregar_estado_inicial():
     estado = load_state()
     if estado:
-        for k in ['disciplinas_selecionadas','professores_selecionados','config_disciplinas',
-                  'config_professores','grupos_choque','config_avancadas',
-                  'resultado_grade_disciplinas','resultado_grade_professores',
-                  'resultado_horarios_professores','resultado_grade_por_semestre',
-                  'resultado_grade_por_professor','resultado_relatorio']:
-            session[k] = estado.get(k,{} if k in DICT_KEYS else [])
-        session['tema'] = estado.get('tema','claro'); session.modified = True; return True
+        for k in _SESSION_KEYS:
+            session[k] = estado.get(k, {} if k in DICT_KEYS else [])
+        session['tema'] = estado.get('tema', 'claro')
+        if estado.get('resultado_token'):
+            session['resultado_token'] = estado['resultado_token']
+        session.modified = True
+        return True
     return False
 
 def _preservar_configs_disc(novas, antigas, cfgs_antigas):
@@ -134,24 +226,28 @@ def config():
 @app.route('/generate')
 def generate():
     if 'disciplinas_selecionadas' not in session: carregar_estado_inicial()
+    res = _get_resultados()
     return render_template('generate.html',
-        show_results=bool(session.get('resultado_grade_disciplinas')),
-        grade_disciplinas=session.get('resultado_grade_disciplinas',{}),
-        grade_professores=session.get('resultado_grade_professores',{}),
-        horarios_professores=session.get('resultado_horarios_professores',{}),
-        grade_por_semestre=session.get('resultado_grade_por_semestre',{}),
-        grade_por_professor=session.get('resultado_grade_por_professor',{}),
-        relatorio=session.get('resultado_relatorio',{}), dias=DIAS, horarios=HORARIOS)
+        show_results=bool(res.get('grade_disciplinas')),
+        grade_disciplinas=res.get('grade_disciplinas',{}),
+        grade_professores=res.get('grade_professores',{}),
+        horarios_professores=res.get('horarios_professores',{}),
+        grade_por_semestre=res.get('grade_por_semestre',{}),
+        grade_por_professor=res.get('grade_por_professor',{}),
+        grades_com_prof=res.get('grades_com_prof',{}),
+        relatorio=res.get('relatorio',{}), dias=DIAS, horarios=HORARIOS)
 
 @app.route('/resultados')
 def resultados():
+    res = _get_resultados()
     return render_template('generate.html', show_results=True,
-        grade_disciplinas=session.get('resultado_grade_disciplinas',{}),
-        grade_professores=session.get('resultado_grade_professores',{}),
-        horarios_professores=session.get('resultado_horarios_professores',{}),
-        grade_por_semestre=session.get('resultado_grade_por_semestre',{}),
-        grade_por_professor=session.get('resultado_grade_por_professor',{}),
-        relatorio=session.get('resultado_relatorio',{}), dias=DIAS, horarios=HORARIOS)
+        grade_disciplinas=res.get('grade_disciplinas',{}),
+        grade_professores=res.get('grade_professores',{}),
+        horarios_professores=res.get('horarios_professores',{}),
+        grade_por_semestre=res.get('grade_por_semestre',{}),
+        grade_por_professor=res.get('grade_por_professor',{}),
+        grades_com_prof=res.get('grades_com_prof',{}),
+        relatorio=res.get('relatorio',{}), dias=DIAS, horarios=HORARIOS)
 
 # ─── APIs ──────────────────────────────────────────────────────────────────
 @app.route('/api/status')
@@ -608,15 +704,20 @@ def gerar_grade():
     relatorio['avisos'].extend(avisos); relatorio['niveis']={u2n.get(k,k):v for k,v in niveis.items()}
     relatorio['fase1_ok']=True; relatorio['score']=round(melhor_sc,2)
 
-    # Converter display
+    # Converter display — TODAS as tabelas usam o conjunto COMPLETO de dias
+    # (não filtra dias vazios → tabela sempre tem N colunas iguais)
+    dias_completos = _get_dias_para_nivel(nivel_max, estado_sabado)
     grades_display={}
     for gkey,grade in grades_por_grupo.items():
         curso,sem=gkey; ks=grupo_key(curso,sem)
-        dias_grade=[d for d in grade if any(grade[d][h] for h in HORARIOS)] or DIAS_BASE
-        grades_display[ks]={dia:{h:( ', '.join(u2n.get(u,u) for u in grade[dia][h]) if grade[dia][h] else '—') for h in HORARIOS} for dia in dias_grade}
+        grades_display[ks]={
+            dia: {h: (', '.join(u2n.get(u,u) for u in grade.get(dia,{}).get(h,[])) if grade.get(dia,{}).get(h) else '—')
+                  for h in HORARIOS}
+            for dia in dias_completos
+        }
 
     # Grade combinada
-    dias_max=_get_dias_para_nivel(nivel_max, estado_sabado)
+    dias_max = dias_completos
     gc={d:{h:[] for h in HORARIOS} for d in dias_max}
     for gkey,grade in grades_por_grupo.items():
         curso,sem=gkey; lbl='[{}º-{}]'.format(sem,curso)
@@ -624,17 +725,31 @@ def gerar_grade():
             if dia not in gc: gc[dia]={h:[] for h in HORARIOS}
             for h in HORARIOS:
                 if grade[dia][h]: gc[dia][h].append('{} {}'.format(lbl,', '.join(u2n.get(u,u) for u in grade[dia][h])))
-    dias_comb=[d for d in dias_max if any(gc.get(d,{}).get(h) for h in HORARIOS)] or DIAS_BASE
+    # Grade combinada: TAMBÉM com todas colunas
+    dias_comb = dias_completos
     grade_display={d:{h:(' | '.join(gc[d][h]) if gc.get(d,{}).get(h) else '—') for h in HORARIOS} for d in dias_comb}
 
     # FASE 2 — Professores
     grade_prof=copy.deepcopy(grade_display)
     prof_carga={p.get('nome',''):0 for p in professores}
+    prof_carga_max={p.get('nome',''):20 for p in professores}
     h_por_prof={p.get('nome',''):[] for p in professores}
-    grade_por_professor={p.get('nome',''):{d:{h:'—' for h in HORARIOS} for d in dias_comb} for p in professores}
+
+    # Grade por professor — TODAS as colunas de dias (não filtra dias vazios)
+    grade_por_professor = {
+        p.get('nome',''): {d: {h:'—' for h in HORARIOS} for d in dias_completos}
+        for p in professores
+    }
+
+    # Grades por semestre COM PROFESSORES (mesma estrutura de grades_display, mas
+    # mostrando "Disciplina (Professor)" em cada célula)
+    grades_com_prof = {ks: {dia: {h:'—' for h in HORARIOS} for dia in dias_completos}
+                       for ks in grades_display.keys()}
+
     uid_para_prof=defaultdict(list)
     for pi,prof in enumerate(professores):
         cp=config_prof[pi] if pi<len(config_prof) else {}
+        prof_carga_max[prof.get('nome','')] = int(cp.get('carga_maxima',20))
         for di in cp.get('disciplinas_internas',[]):
             try: di=int(di)
             except: continue
@@ -644,12 +759,12 @@ def gerar_grade():
                                            'indisp':cp.get('disponibilidade',[]),'n_disc':len(cp.get('disciplinas_internas',[]))})
     discs_semprof=set(); occ_prof_slot=defaultdict(set)
     for gkey,grade in grades_por_grupo.items():
-        curso,sem=gkey; lbl='[{}º-{}]'.format(sem,curso)
-        for dia in dias_comb:
+        curso,sem=gkey; lbl='[{}º-{}]'.format(sem,curso); ks=grupo_key(curso,sem)
+        for dia in dias_completos:
             if dia not in grade: continue
             for hora in HORARIOS:
                 if not grade[dia][hora]: continue
-                partes=[]
+                partes=[]; partes_sem_lbl=[]
                 for uid in grade[dia][hora]:
                     nd=u2n.get(uid,uid); prof_ok=None
                     cands=sorted(uid_para_prof.get(uid,[]),key=lambda c:(c['n_disc'],prof_carga.get(c['nome'],0)))
@@ -663,99 +778,399 @@ def gerar_grade():
                             if pn in grade_por_professor and dia in grade_por_professor[pn]:
                                 grade_por_professor[pn][dia][hora]='{} {}'.format(lbl,nd)
                             break
-                    if prof_ok: partes.append('{} ({})'.format(nd,prof_ok))
-                    else: partes.append(nd); (discs_semprof.add(nd) if uid_para_prof.get(uid) else None)
+                    if prof_ok:
+                        partes.append('{} ({})'.format(nd,prof_ok))
+                        partes_sem_lbl.append('{} ({})'.format(nd,prof_ok))
+                    else:
+                        partes.append(nd)
+                        partes_sem_lbl.append(nd)
+                        if uid_para_prof.get(uid): discs_semprof.add(nd)
                 grade_prof[dia][hora]='{} {}'.format(lbl,' | '.join(partes))
+                # Per-group "Com Professores" — sem o prefixo de grupo, fica idêntico ao por-semestre + (Prof)
+                grades_com_prof[ks][dia][hora] = ', '.join(partes_sem_lbl)
+
     if discs_semprof: relatorio['disciplinas_sem_professor']=sorted(discs_semprof)
     for pi,prof in enumerate(professores):
         pn=prof.get('nome',''); cp=config_prof[pi] if pi<len(config_prof) else {}
         if prof_carga.get(pn,0)>=int(cp.get('carga_maxima',20)): relatorio['professores_sobrecarga'].append(pn)
+
+    # Relatório de carga horária por professor (definida vs alocada)
+    relatorio['carga_por_professor'] = {
+        p.get('nome',''): {
+            'definida': prof_carga_max.get(p.get('nome',''), 20),
+            'alocada':  prof_carga.get(p.get('nome',''), 0),
+        }
+        for p in professores
+    }
+
     relatorio['fase2_ok']=True
-    return grade_display,grade_prof,h_por_prof,grades_display,grade_por_professor,relatorio
+    return grade_display, grade_prof, h_por_prof, grades_display, grade_por_professor, relatorio, grades_com_prof
 
 @app.route('/iniciar_geracao', methods=['POST'])
 def iniciar_geracao():
     try:
-        if not session.get('disciplinas_selecionadas'): return jsonify({'status':'erro','mensagem':'Nenhuma disciplina selecionada'})
-        gd,gp,hp,gs,gpp,rel=gerar_grade()
-        if rel.get('erros'): return jsonify({'status':'erro','mensagem':'Falha na validação','erros':rel['erros']})
-        session['resultado_grade_disciplinas']=gd; session['resultado_grade_professores']=gp
-        session['resultado_horarios_professores']=hp; session['resultado_grade_por_semestre']=gs
-        session['resultado_grade_por_professor']=gpp; session['resultado_relatorio']=rel
-        session.modified=True; auto_save()
-        return jsonify({'status':'sucesso','relatorio':rel})
+        discs = session.get('disciplinas_selecionadas', [])
+        if not discs:
+            return jsonify({'status':'erro',
+                            'mensagem':'Nenhuma disciplina selecionada',
+                            'erros':['Volte à tela de Seleção e escolha pelo menos uma disciplina.']})
+
+        # Validação: configs existem para cada disciplina
+        config_disc = session.get('config_disciplinas', [])
+        if len(config_disc) < len(discs):
+            session['config_disciplinas'] = [_cfg_padrao(d) for d in discs]
+            session.modified = True
+
+        gd, gp, hp, gs, gpp, rel, gcp = gerar_grade()
+
+        if rel.get('erros'):
+            return jsonify({'status':'erro',
+                            'mensagem':'Falha na validação dos dados',
+                            'erros':rel['erros']})
+
+        # Anti-vazio
+        total_alocado = sum(1 for d in gd for h, c in gd[d].items() if c != '—')
+        if total_alocado == 0 and discs:
+            return jsonify({'status':'erro',
+                            'mensagem':'Não foi possível gerar uma grade com as configurações atuais',
+                            'erros':['Verifique se há slots suficientes considerando suas restrições.',
+                                     'Tente aumentar o nível de flexibilidade nas Configurações Avançadas.']})
+
+        # Armazenar no STORE (não na session) e guardar apenas o token
+        token = _store_resultados({
+            'grade_disciplinas':     gd,
+            'grade_professores':     gp,
+            'horarios_professores':  hp,
+            'grade_por_semestre':    gs,
+            'grade_por_professor':   gpp,
+            'grades_com_prof':       gcp,
+            'relatorio':             rel,
+        })
+        session['resultado_token'] = token
+        session.modified = True
+        auto_save()
+        return jsonify({'status':'sucesso','relatorio':rel, 'token':token})
     except Exception as e:
-        import traceback; return jsonify({'status':'erro','mensagem':str(e),'trace':traceback.format_exc()})
+        import traceback
+        return jsonify({'status':'erro','mensagem':str(e),'trace':traceback.format_exc()})
 
 # ─── Download / Export / Import / Reset / Tema ────────────────────────────
 @app.route('/download/<tipo>')
 def download(tipo):
-    mapa={'disciplinas':('resultado_grade_disciplinas','grade_disciplinas.json'),
-          'professores':('resultado_grade_professores','grade_professores.json'),
-          'horarios':('resultado_horarios_professores','horarios_professores.json'),
-          'semestre':('resultado_grade_por_semestre','grade_por_semestre.json'),
-          'por_professor':('resultado_grade_por_professor','grade_por_professor.json')}
+    mapa = {'disciplinas':   ('grade_disciplinas',    'grade_disciplinas.json'),
+            'professores':   ('grade_professores',    'grade_professores.json'),
+            'horarios':      ('horarios_professores', 'horarios_professores.json'),
+            'semestre':      ('grade_por_semestre',   'grade_por_semestre.json'),
+            'por_professor': ('grade_por_professor',  'grade_por_professor.json')}
     if tipo not in mapa: return jsonify({'erro':'tipo inválido'})
-    k,fn=mapa[tipo]; buf=io.BytesIO(json.dumps(session.get(k,{}),ensure_ascii=False,indent=2).encode('utf-8'))
-    buf.seek(0); return send_file(buf,mimetype='application/json',as_attachment=True,download_name=fn)
+    chave, fn = mapa[tipo]
+    res = _get_resultados()
+    buf = io.BytesIO(json.dumps(res.get(chave, {}), ensure_ascii=False, indent=2).encode('utf-8'))
+    buf.seek(0)
+    return send_file(buf, mimetype='application/json', as_attachment=True, download_name=fn)
+
+
+@app.route('/download_excel')
+def download_excel():
+    """
+    Gera arquivo .xlsx com 4 abas, cada uma com uma versão da grade.
+    Mantém o mesmo formato visual da interface (linhas=horários, colunas=dias).
+    """
+    res = _get_resultados()
+    if not res.get('grade_disciplinas'):
+        return jsonify({'erro': 'Nenhuma grade gerada'}), 404
+
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        return jsonify({'erro':'Módulo openpyxl não instalado. Execute: pip install openpyxl'}), 500
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)  # remove sheet padrão
+
+    # Estilos
+    header_font = Font(bold=True, color='FFFFFF', size=11)
+    header_fill = PatternFill('solid', fgColor='6C9EBF')
+    title_font  = Font(bold=True, size=14, color='2D2D5F')
+    subtitle_font = Font(italic=True, size=10, color='666666')
+    cell_align  = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    thin = Side(border_style='thin', color='CCCCCC')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    almoco_fill = PatternFill('solid', fgColor='F0F0F0')
+    empty_fill  = PatternFill('solid', fgColor='FAFAFA')
+
+    HORARIOS_TODOS = HORARIOS  # mesmos horários do solver
+
+    def _draw_grid_sheet(ws, titulo, subtitulo, dias_grid, get_cell_value):
+        """Desenha um cabeçalho + tabela linhas=horários, colunas=dias."""
+        ws.cell(row=1, column=1, value=titulo).font = title_font
+        if subtitulo:
+            ws.cell(row=2, column=1, value=subtitulo).font = subtitle_font
+        # Header (linha 4)
+        ws.cell(row=4, column=1, value='Horário').font = header_font
+        ws.cell(row=4, column=1).fill = header_fill
+        ws.cell(row=4, column=1).alignment = cell_align
+        ws.cell(row=4, column=1).border = border
+        for j, dia in enumerate(dias_grid, start=2):
+            c = ws.cell(row=4, column=j, value=dia)
+            c.font = header_font; c.fill = header_fill; c.alignment = cell_align; c.border = border
+        # Linhas de dados — TODOS os horários + linha de almoço
+        row_idx = 5
+        for i, hora in enumerate(HORARIOS_TODOS):
+            # Inserir linha de almoço entre 11-12 e 14-15
+            if i == 4:
+                ws.cell(row=row_idx, column=1, value='12:00-14:00').font = Font(italic=True, color='888888')
+                ws.cell(row=row_idx, column=1).alignment = cell_align
+                ws.cell(row=row_idx, column=1).border = border
+                for j in range(2, len(dias_grid)+2):
+                    c = ws.cell(row=row_idx, column=j, value='almoço')
+                    c.alignment = cell_align; c.fill = almoco_fill; c.border = border
+                    c.font = Font(italic=True, color='888888', size=9)
+                row_idx += 1
+            ws.cell(row=row_idx, column=1, value=hora).font = Font(bold=True, color='555555')
+            ws.cell(row=row_idx, column=1).alignment = cell_align
+            ws.cell(row=row_idx, column=1).border = border
+            for j, dia in enumerate(dias_grid, start=2):
+                val = get_cell_value(dia, hora)
+                c = ws.cell(row=row_idx, column=j, value=val if val and val != '—' else '')
+                c.alignment = cell_align; c.border = border
+                if not val or val == '—':
+                    c.fill = empty_fill
+            row_idx += 1
+        # Larguras
+        ws.column_dimensions['A'].width = 14
+        for j in range(2, len(dias_grid)+2):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(j)].width = 22
+        ws.row_dimensions[1].height = 24
+        for r in range(4, row_idx):
+            ws.row_dimensions[r].height = 28
+
+    # ── Aba 1: Por Semestre (uma sub-tabela por grupo) ─────────────────────
+    gs = res.get('grade_por_semestre', {})
+    ws1 = wb.create_sheet('Por Semestre')
+    if gs:
+        # Para cada grupo, criamos um bloco vertical
+        row_offset = 0
+        for gk in sorted(gs.keys()):
+            grade_g = gs[gk]
+            curso, sem = (gk.split('|') + ['Geral','1'])[:2]
+            titulo = f'{sem}º SEMESTRE — {curso}'
+            subt = ''
+            dias_grid = list(grade_g.keys())
+            # Reescreve esta seção começando em row_offset+1
+            base_row = row_offset + 1
+            ws1.cell(row=base_row, column=1, value=titulo).font = title_font
+            ws1.cell(row=base_row+2, column=1, value='Horário').font = header_font
+            ws1.cell(row=base_row+2, column=1).fill = header_fill
+            ws1.cell(row=base_row+2, column=1).alignment = cell_align
+            ws1.cell(row=base_row+2, column=1).border = border
+            for j, dia in enumerate(dias_grid, start=2):
+                c = ws1.cell(row=base_row+2, column=j, value=dia)
+                c.font = header_font; c.fill = header_fill; c.alignment = cell_align; c.border = border
+            row = base_row + 3
+            for i, hora in enumerate(HORARIOS_TODOS):
+                if i == 4:
+                    ws1.cell(row=row, column=1, value='12:00-14:00').alignment = cell_align
+                    ws1.cell(row=row, column=1).border = border
+                    for j in range(2, len(dias_grid)+2):
+                        c = ws1.cell(row=row, column=j, value='almoço')
+                        c.alignment = cell_align; c.fill = almoco_fill; c.border = border
+                    row += 1
+                ws1.cell(row=row, column=1, value=hora).alignment = cell_align
+                ws1.cell(row=row, column=1).border = border
+                for j, dia in enumerate(dias_grid, start=2):
+                    val = grade_g.get(dia, {}).get(hora, '—')
+                    c = ws1.cell(row=row, column=j, value=val if val != '—' else '')
+                    c.alignment = cell_align; c.border = border
+                    if val == '—': c.fill = empty_fill
+                row += 1
+            row_offset = row + 2  # espaço entre tabelas
+        ws1.column_dimensions['A'].width = 14
+        for col_letter in 'BCDEFG':
+            ws1.column_dimensions[col_letter].width = 22
+
+    # ── Aba 2: Combinada ────────────────────────────────────────────────────
+    gd = res.get('grade_disciplinas', {})
+    ws2 = wb.create_sheet('Grade Combinada')
+    if gd:
+        dias_g = list(gd.keys())
+        _draw_grid_sheet(ws2, 'Grade Combinada', 'Todos os semestres em uma única tabela',
+                         dias_g, lambda d, h: gd.get(d, {}).get(h, '—'))
+
+    # ── Aba 3: Com Professores (por grupo, igual à aba 1 mas com prof) ─────
+    gcp = res.get('grades_com_prof', {})
+    ws3 = wb.create_sheet('Com Professores')
+    if gcp:
+        row_offset = 0
+        for gk in sorted(gcp.keys()):
+            grade_g = gcp[gk]
+            curso, sem = (gk.split('|') + ['Geral','1'])[:2]
+            titulo = f'{sem}º SEMESTRE — {curso} (com professores)'
+            dias_grid = list(grade_g.keys())
+            base_row = row_offset + 1
+            ws3.cell(row=base_row, column=1, value=titulo).font = title_font
+            ws3.cell(row=base_row+2, column=1, value='Horário').font = header_font
+            ws3.cell(row=base_row+2, column=1).fill = header_fill
+            ws3.cell(row=base_row+2, column=1).alignment = cell_align
+            ws3.cell(row=base_row+2, column=1).border = border
+            for j, dia in enumerate(dias_grid, start=2):
+                c = ws3.cell(row=base_row+2, column=j, value=dia)
+                c.font = header_font; c.fill = header_fill; c.alignment = cell_align; c.border = border
+            row = base_row + 3
+            for i, hora in enumerate(HORARIOS_TODOS):
+                if i == 4:
+                    ws3.cell(row=row, column=1, value='12:00-14:00').alignment = cell_align
+                    ws3.cell(row=row, column=1).border = border
+                    for j in range(2, len(dias_grid)+2):
+                        c = ws3.cell(row=row, column=j, value='almoço')
+                        c.alignment = cell_align; c.fill = almoco_fill; c.border = border
+                    row += 1
+                ws3.cell(row=row, column=1, value=hora).alignment = cell_align
+                ws3.cell(row=row, column=1).border = border
+                for j, dia in enumerate(dias_grid, start=2):
+                    val = grade_g.get(dia, {}).get(hora, '—')
+                    c = ws3.cell(row=row, column=j, value=val if val and val != '—' else '')
+                    c.alignment = cell_align; c.border = border
+                    if not val or val == '—': c.fill = empty_fill
+                row += 1
+            row_offset = row + 2
+        ws3.column_dimensions['A'].width = 14
+        for col_letter in 'BCDEFG':
+            ws3.column_dimensions[col_letter].width = 22
+
+    # ── Aba 4: Por Professor ────────────────────────────────────────────────
+    gpp = res.get('grade_por_professor', {})
+    cargas = res.get('relatorio', {}).get('carga_por_professor', {})
+    ws4 = wb.create_sheet('Por Professor')
+    if gpp:
+        row_offset = 0
+        for prof in gpp.keys():
+            grade_p = gpp[prof]
+            carga = cargas.get(prof, {})
+            definida = carga.get('definida', '?')
+            alocada  = carga.get('alocada', 0)
+            dias_grid = list(grade_p.keys())
+            base_row = row_offset + 1
+            ws4.cell(row=base_row, column=1, value=prof).font = title_font
+            ws4.cell(row=base_row+1, column=1, value=f'Carga Horária Definida: {definida}h/sem · Carga Alocada: {alocada}h/sem').font = subtitle_font
+            ws4.cell(row=base_row+3, column=1, value='Horário').font = header_font
+            ws4.cell(row=base_row+3, column=1).fill = header_fill
+            ws4.cell(row=base_row+3, column=1).alignment = cell_align
+            ws4.cell(row=base_row+3, column=1).border = border
+            for j, dia in enumerate(dias_grid, start=2):
+                c = ws4.cell(row=base_row+3, column=j, value=dia)
+                c.font = header_font; c.fill = header_fill; c.alignment = cell_align; c.border = border
+            row = base_row + 4
+            for i, hora in enumerate(HORARIOS_TODOS):
+                if i == 4:
+                    ws4.cell(row=row, column=1, value='12:00-14:00').alignment = cell_align
+                    ws4.cell(row=row, column=1).border = border
+                    for j in range(2, len(dias_grid)+2):
+                        c = ws4.cell(row=row, column=j, value='almoço')
+                        c.alignment = cell_align; c.fill = almoco_fill; c.border = border
+                    row += 1
+                ws4.cell(row=row, column=1, value=hora).alignment = cell_align
+                ws4.cell(row=row, column=1).border = border
+                for j, dia in enumerate(dias_grid, start=2):
+                    val = grade_p.get(dia, {}).get(hora, '—')
+                    c = ws4.cell(row=row, column=j, value=val if val and val != '—' else '')
+                    c.alignment = cell_align; c.border = border
+                    if not val or val == '—': c.fill = empty_fill
+                row += 1
+            row_offset = row + 2
+        ws4.column_dimensions['A'].width = 14
+        for col_letter in 'BCDEFG':
+            ws4.column_dimensions[col_letter].width = 22
+
+    # Salvar em buffer
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True, download_name='combinix_grade.xlsx')
 
 @app.route('/export')
 def export():
-    keys=['disciplinas_selecionadas','professores_selecionados','config_disciplinas','config_professores',
-          'grupos_choque','config_avancadas','resultado_grade_disciplinas','resultado_grade_professores',
-          'resultado_horarios_professores','resultado_grade_por_semestre','resultado_grade_por_professor','resultado_relatorio']
-    data={k:session.get(k,{} if k in DICT_KEYS else []) for k in keys}
-    buf=io.BytesIO(json.dumps(data,ensure_ascii=False,indent=2).encode('utf-8')); buf.seek(0)
-    return send_file(buf,mimetype='application/json',as_attachment=True,download_name='combinix_export.json')
+    # Dados leves vêm da sessão
+    data = {k: session.get(k, {} if k in DICT_KEYS else []) for k in _SESSION_KEYS}
+    # Resultados vêm do store
+    res = _get_resultados()
+    data.update({
+        'resultado_grade_disciplinas':    res.get('grade_disciplinas', {}),
+        'resultado_grade_professores':    res.get('grade_professores', {}),
+        'resultado_horarios_professores': res.get('horarios_professores', {}),
+        'resultado_grade_por_semestre':   res.get('grade_por_semestre', {}),
+        'resultado_grade_por_professor':  res.get('grade_por_professor', {}),
+        'resultado_relatorio':            res.get('relatorio', {}),
+    })
+    buf = io.BytesIO(json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8'))
+    buf.seek(0)
+    return send_file(buf, mimetype='application/json', as_attachment=True, download_name='combinix_export.json')
 
 @app.route('/import', methods=['POST'])
 def import_state():
     try:
-        f=request.files.get('file')
+        f = request.files.get('file')
         if not f: return jsonify({'status':'erro','mensagem':'Nenhum arquivo enviado'})
-        data=json.loads(f.read().decode('utf-8'))
-        for k in ['disciplinas_selecionadas','professores_selecionados','config_disciplinas','config_professores',
-                  'grupos_choque','config_avancadas','resultado_grade_disciplinas','resultado_grade_professores',
-                  'resultado_horarios_professores','resultado_grade_por_semestre','resultado_grade_por_professor','resultado_relatorio']:
-            if k in data: session[k]=data[k]
-        session.modified=True; auto_save(); return jsonify({'status':'sucesso'})
-    except Exception as e: return jsonify({'status':'erro','mensagem':str(e)})
+        data = json.loads(f.read().decode('utf-8'))
+        # Dados leves → sessão
+        for k in _SESSION_KEYS:
+            if k in data: session[k] = data[k]
+        # Resultados → store (se houver)
+        res_keys = ['resultado_grade_disciplinas','resultado_grade_professores',
+                    'resultado_horarios_professores','resultado_grade_por_semestre',
+                    'resultado_grade_por_professor','resultado_relatorio']
+        if any(k in data and data[k] for k in res_keys):
+            dados = {
+                'grade_disciplinas':     data.get('resultado_grade_disciplinas', {}),
+                'grade_professores':     data.get('resultado_grade_professores', {}),
+                'horarios_professores':  data.get('resultado_horarios_professores', {}),
+                'grade_por_semestre':    data.get('resultado_grade_por_semestre', {}),
+                'grade_por_professor':   data.get('resultado_grade_por_professor', {}),
+                'relatorio':             data.get('resultado_relatorio', {}),
+            }
+            token = _store_resultados(dados)
+            session['resultado_token'] = token
+        session.modified = True
+        auto_save()
+        return jsonify({'status':'sucesso'})
+    except Exception as e:
+        return jsonify({'status':'erro','mensagem':str(e)})
 
 @app.route('/reset', methods=['POST'])
 def reset():
-    """Reset COMPLETO: limpa toda a sessão + arquivo state.json. Mantém arquivos base."""
-    session.clear(); reset_state(); return jsonify({'status':'ok'})
+    """Reset COMPLETO: limpa sessão + state.json + resultados do usuário."""
+    _limpar_resultados_usuario()
+    session.clear()
+    reset_state()
+    return jsonify({'status':'ok'})
 
 @app.route('/reset_configuracoes', methods=['POST'])
 def reset_configuracoes():
     """
     Reset SUAVE: mantém seleções (disciplinas + professores escolhidos),
     mas zera todas as configurações (fixações, tipos, conflitos, indisponibilidades).
-    Útil para 'limpar tudo e começar config do zero'.
     """
     discs = session.get('disciplinas_selecionadas', [])
     profs = session.get('professores_selecionados', [])
-    # Recria configs no padrão para cada disciplina/professor selecionado
     session['config_disciplinas']  = [_cfg_padrao(d) for d in discs]
     session['config_professores']  = [_cfg_padrao_prof() for _ in profs]
     session['grupos_choque']       = []
     session['config_avancadas']    = {'estado_sabado':'desativado','nivel_restricao':3}
-    # Limpa também resultados antigos (ficaram inválidos)
-    for k in ['resultado_grade_disciplinas','resultado_grade_professores',
-              'resultado_horarios_professores','resultado_grade_por_semestre',
-              'resultado_grade_por_professor','resultado_relatorio']:
-        session[k] = {}
-    session.modified = True; auto_save()
+    # Limpa resultados do usuário (store + token)
+    _limpar_resultados_usuario()
+    session.modified = True
+    auto_save()
     return jsonify({'status':'ok'})
 
 @app.route('/reset_resultados', methods=['POST'])
 def reset_resultados():
     """Reset apenas dos resultados gerados — mantém TUDO (seleções + configs)."""
-    for k in ['resultado_grade_disciplinas','resultado_grade_professores',
-              'resultado_horarios_professores','resultado_grade_por_semestre',
-              'resultado_grade_por_professor','resultado_relatorio']:
-        session[k] = {}
-    session.modified = True; auto_save()
+    _limpar_resultados_usuario()
+    session.modified = True
+    auto_save()
     return jsonify({'status':'ok'})
 
 @app.route('/salvar_tema', methods=['POST'])
