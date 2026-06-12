@@ -21,7 +21,7 @@
     <span id="selectionSaveStatus" class="chip chip-success">
         <i class="fas fa-check-circle me-1"></i>Seleções sincronizadas
     </span>
-    <small class="text-muted">As disciplinas e os professores são gravados juntos neste computador.</small>
+    <small class="text-muted">{% if is_browser_storage %}As disciplinas e os professores são gravados juntos neste navegador.{% else %}As disciplinas e os professores são gravados juntos neste computador.{% endif %}</small>
 </div>
 
 <div class="row g-3">

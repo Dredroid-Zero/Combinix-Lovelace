@@ -1,9 +1,27 @@
-# Combinix Lovelace 2.1.4 Local
+# Combinix Lovelace 2.2.0 Híbrido
 
-O **Combinix Lovelace** monta grades acadêmicas automaticamente a partir das disciplinas, professores e restrições definidas pela coordenação. Esta versão foi organizada para uso **local**, em um único computador, mas a persistência já foi separada por `workspace` para facilitar a futura inclusão de login e uma área individual para cada coordenador.
+O **Combinix Lovelace** monta grades acadêmicas automaticamente a partir das disciplinas, professores e restrições definidas pela coordenação. A versão 2.2.0 possui persistência **híbrida**: continua funcionando localmente com arquivos JSON e também pode ser publicada na Vercel como demonstração web, salvando os dados somente no navegador de cada visitante.
 
 
 
+## Novidades 2.2.0 — modo web demonstrativo com IndexedDB
+
+A aplicação detecta automaticamente quando está sendo executada na **Vercel**. Nesse ambiente, ela deixa de tentar alterar arquivos na hospedagem e utiliza o navegador como armazenamento.
+
+- **IndexedDB** é o armazenamento principal, pois oferece capacidade maior do que `localStorage`.
+- `localStorage` permanece somente como fallback para navegadores que não disponibilizem IndexedDB.
+- A interface mostra o backend utilizado, o tamanho do estado atual, o uso total daquela origem e a cota informada pelo navegador.
+- O botão **Proteger armazenamento** solicita ao navegador uma proteção adicional contra remoções automáticas em situações de pouco espaço. O navegador pode aceitar ou recusar.
+- O botão **Exportar backup** continua disponível e é recomendado para preservar uma cópia externa.
+- O botão **Limpar dados** remove seleções, configurações e grades somente daquele navegador.
+
+O modo web mantém apenas o estado atual. As alterações sobrescrevem o snapshot anterior, portanto não existe crescimento ilimitado a cada clique. O armazenamento é separado por domínio, navegador e dispositivo: ainda não existe sincronização entre computadores nem login.
+
+Em outros serviços de hospedagem, o modo navegador pode ser ativado manualmente com:
+
+```text
+COMBINIX_STORAGE_MODE=browser
+```
 
 ## Correção 2.1.4 — avanço confiável para a configuração
 
@@ -93,7 +111,7 @@ Execute `diagnostico_local.bat`. Ele cria o arquivo `diagnostico_combinix.txt` c
 
 ### Caso apareça uma pergunta sobre finalizar o arquivo em lotes
 
-Essa pergunta normalmente aparece depois de uma interrupção manual com `Ctrl+C`. Responda `S`, feche a janela e execute novamente o `run_local.bat`. A versão `2.1.4-local` não executa `pip install`.
+Essa pergunta normalmente aparece depois de uma interrupção manual com `Ctrl+C`. Responda `S`, feche a janela e execute novamente o `run_local.bat`. A versão `2.2.0-hybrid` não executa `pip install`.
 
 ## Execução manual opcional
 
@@ -196,21 +214,39 @@ Os nomes dos catálogos são carregados somente a partir dos arquivos `.json` ex
 
 ## Persistência, backups e futura autenticação
 
-No modo atual, os dados ficam neste computador. O workspace ativo é `local` e seus arquivos são gravados em:
+### Modo local
+
+Ao executar `run_local.bat`, os dados ficam no computador em:
 
 ```text
 database/workspaces/local/
 ```
 
+A escrita é atômica e mantém somente o estado atual e um backup anterior. Os resultados gerados ficam em `database/resultados.json`.
+
+### Modo web demonstrativo
+
+Na Vercel, o sistema ativa automaticamente o armazenamento no navegador. O estado completo — seleções, configurações e última grade — é mantido no **IndexedDB** daquela origem. Caso IndexedDB não esteja disponível, o frontend utiliza `localStorage` como fallback.
+
+A capacidade efetiva do IndexedDB varia conforme navegador, sistema operacional e espaço disponível. A interface consulta `navigator.storage.estimate()` e mostra a cota informada pelo navegador. Como segurança adicional, exporte backups JSON periodicamente.
+
+Embora o IndexedDB possa oferecer uma cota maior, o snapshot precisa atravessar uma função da Vercel para que o motor Python processe a grade. Para preservar uma margem segura no transporte, o Combinix limita o estado web sincronizado a **3 MiB** e os backups importados no modo web a **4 MiB**. A interface avisa quando o estado atual passa de 2,5 MiB. As exportações baixadas não são acumuladas dentro do IndexedDB.
+
+Os dados podem deixar de estar disponíveis se o usuário limpar os dados do site, utilizar navegação anônima, trocar de navegador, trocar de computador ou acessar outro domínio. Esse modo é apropriado para demonstração e testes individuais, não para colaboração entre coordenadores.
+
+### Evolução futura
+
 O botão de exportação gera um backup JSON completo. A área de importação restaura backups válidos e rejeita estruturas corrompidas ou horários desconhecidos.
 
-As seleções completas e configurações ficam nesses arquivos locais, não no cookie do navegador. A separação por workspace foi criada para a evolução futura. Quando houver autenticação, o identificador `local` poderá ser substituído internamente pelo ID do coordenador autenticado, isolando seleções, configurações e resultados.
+Quando houver autenticação, o modo web deverá migrar para um banco de dados associado ao coordenador autenticado. O IndexedDB poderá continuar sendo utilizado como cache local e mecanismo de recuperação.
 
 ## Segurança e publicação futura
 
-Esta edição foi preparada para **uso local** em `127.0.0.1`. Ela não deve ser publicada diretamente na internet como servidor multiusuário.
+A versão local continua adequada para uso individual em `127.0.0.1`. Na Vercel, a versão 2.2.0 funciona como **modo web demonstrativo**: cada navegador possui seu próprio estado e o servidor não grava arquivos durante a execução.
 
-Antes de uma versão online, implemente autenticação, banco de dados transacional, autorização por coordenador, testes de concorrência, HTTPS, gerenciamento de segredos e implantação por um servidor WSGI adequado. O código já deixa explícito o ponto onde o workspace deverá ser associado ao usuário autenticado.
+Esse modo ainda não substitui uma versão multiusuário. Antes de disponibilizar contas para coordenadores, implemente autenticação, banco de dados transacional, autorização por usuário, políticas de backup, testes de concorrência e gerenciamento de segredos.
+
+A proteção CSRF do modo navegador utiliza um cookie próprio do domínio, evitando depender da persistência do sistema de arquivos da Vercel.
 
 ## Testes
 
@@ -232,8 +268,8 @@ python tests/smoke_catalogs.py
 app.py                     rotas, validações e interface Flask
 persistence.py             persistência local atômica por workspace
 services/solver.py          motor de geração e diagnósticos
-templates/                  páginas HTML
-static/                     CSS, JavaScript, Bootstrap local e imagens
+templates/                  páginas HTML e loader do IndexedDB
+static/                     CSS, JavaScript, IndexedDB, Bootstrap local e imagens
 disciplinas/                catálogos base de disciplinas
 professores/                catálogos base de professores
 tests/                      testes automatizados
@@ -242,4 +278,4 @@ docs/                       documentação técnica
 
 ## Versão
 
-`2.1.4-local`
+`2.2.0-hybrid`

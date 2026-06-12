@@ -1333,6 +1333,9 @@ if (btnRT) btnRT.addEventListener('click', function(){ abrirResetGlobal('total')
 // só é usada quando a configuração chega completamente vazia, por exemplo
 // após reinício inesperado ou falha temporária de persistência entre páginas.
 (function recuperarSelecoesDoNavegadorSeNecessario(){
+    // No modo web o IndexedDB é a fonte principal e já foi carregado antes de
+    // renderizar esta página. Esta rotina permanece somente como defesa local.
+    if(window.COMBINIX_STORAGE_MODE==='browser') return;
     var backupKey='combinix.selecoes.v1';
     var tentativaKey='combinix.selecoes.restore.attempted';
     var status=document.getElementById('configSelectionRecoveryStatus');

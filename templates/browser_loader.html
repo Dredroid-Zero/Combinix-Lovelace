@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combinix Lovelace · carregando</title>
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
+    <style>
+    body{min-height:100vh;display:grid;place-items:center;background:#f7f8fc;color:#374151;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    .loader-card{max-width:520px;padding:2rem;border-radius:1rem;background:white;box-shadow:0 10px 35px rgba(31,41,55,.10);text-align:center}
+    .spinner{width:2.8rem;height:2.8rem;margin:0 auto 1rem;border:.3rem solid #dbe3f1;border-top-color:#6c9ebf;border-radius:50%;animation:spin .9s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    </style>
+</head>
+<body>
+    <main class="loader-card" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <h1 class="h5">Carregando seus dados deste navegador</h1>
+        <p class="text-muted mb-0">O modo web utiliza IndexedDB para preservar configurações e grades sem gravar arquivos na hospedagem.</p>
+        <p class="text-danger mt-3 mb-0" id="loaderError" style="display:none"></p>
+    </main>
+    <script>
+    window.COMBINIX_STORAGE_MODE = 'browser';
+    window.COMBINIX_CSRF = {{ csrf_token|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/browser_storage.js') }}"></script>
+    <script>
+    CombinixBrowserStorage.submitState({{ target|tojson }}).catch(function(err){
+        var el=document.getElementById('loaderError');
+        el.style.display=''; el.textContent='Não foi possível carregar os dados: '+String(err && err.message || err);
+    });
+    </script>
+</body>
+</html>

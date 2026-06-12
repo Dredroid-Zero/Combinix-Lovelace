@@ -21,7 +21,11 @@
                 <img src="{{ url_for('static', filename='img/logo.png') }}"
                      alt="Combinix Lovelace" class="logo">
                 <span>Combinix Lovelace</span>
-                <span class="local-mode-badge ms-2" title="Execução local: os dados ficam neste computador">Local</span>
+                {% if is_browser_storage %}
+                <span class="local-mode-badge ms-2" title="Modo web demonstrativo: dados salvos somente neste navegador">Web · navegador</span>
+                {% else %}
+                <span class="local-mode-badge ms-2" title="Execução local: os dados ficam nesta pasta do computador">Local</span>
+                {% endif %}
             </a>
             <div class="navbar-nav ms-auto d-flex flex-row align-items-center">
                 <a class="nav-link" href="#" id="themeToggleBtn" title="Alternar modo claro/escuro">
@@ -33,6 +37,26 @@
     </nav>
 
     <div class="container-fluid px-4 mt-3 page-with-floating">
+        {% if is_browser_storage %}
+        <div class="alert alert-info d-flex align-items-start justify-content-between flex-wrap gap-2 py-2 browser-storage-banner" role="status">
+            <div>
+                <i class="fas fa-database me-2"></i><strong>Modo web demonstrativo.</strong>
+                Seus dados ficam somente neste navegador, usando <strong id="browserStorageBackend">IndexedDB</strong>.
+                <small class="d-block mt-1 text-muted" id="browserStorageUsage">Calculando o espaço disponível...</small>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="requestPersistentStorageBtn">
+                    <i class="fas fa-shield-halved me-1"></i>Proteger armazenamento
+                </button>
+                <a class="btn btn-sm btn-outline-secondary" href="/export">
+                    <i class="fas fa-download me-1"></i>Exportar backup
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="clearBrowserStorageBtn">
+                    <i class="fas fa-trash me-1"></i>Limpar dados
+                </button>
+            </div>
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
     </div>
 
@@ -57,48 +81,88 @@
 
     <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
     <script>
-    // Proteção CSRF transparente para todas as alterações locais.
-    // Se o servidor for reiniciado enquanto uma aba antiga continua aberta,
-    // renova o token e repete a alteração uma única vez automaticamente.
+    window.COMBINIX_STORAGE_MODE = {{ storage_mode|tojson }};
+    window.COMBINIX_CSRF = {{ csrf_token|tojson }};
+    window.COMBINIX_PAGE_STATE = {{ browser_state_bootstrap|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/browser_storage.js') }}"></script>
+    <script>
+    if (window.COMBINIX_STORAGE_MODE === 'browser' && window.COMBINIX_PAGE_STATE && window.CombinixBrowserStorage) {
+        window.CombinixBrowserStorage.setState(window.COMBINIX_PAGE_STATE).catch(function(){});
+    }
+    // Proteção CSRF e sincronização transparente com IndexedDB no modo web.
     (function () {
         var originalFetch = window.fetch.bind(window);
         var meta = document.querySelector('meta[name="csrf-token"]');
 
-        function currentCsrf() {
-            return meta ? meta.getAttribute('content') : '';
-        }
-
+        function currentCsrf() { return meta ? meta.getAttribute('content') : (window.COMBINIX_CSRF || ''); }
         function updateCsrf(token) {
-            if (token && meta) meta.setAttribute('content', token);
+            if (!token) return;
+            window.COMBINIX_CSRF = token;
+            if (meta) meta.setAttribute('content', token);
         }
-
-        window.fetch = function(resource, options) {
+        function sameOrigin(resource) {
+            try { return new URL(typeof resource === 'string' ? resource : resource.url, location.href).origin === location.origin; }
+            catch (_err) { return true; }
+        }
+        function attachBrowserState(options) {
+            if (window.COMBINIX_STORAGE_MODE !== 'browser' || options.__browserStateAttached) return Promise.resolve(options);
+            return window.CombinixBrowserStorage.getState().then(function(state) {
+                options.__browserStateAttached = true;
+                if (options.body instanceof FormData) {
+                    options.body.set('browser_state', JSON.stringify(state || {}));
+                } else if (options.body instanceof URLSearchParams) {
+                    options.body.set('_browser_state', JSON.stringify(state || {}));
+                } else {
+                    var payload = {};
+                    if (typeof options.body === 'string' && options.body) {
+                        try { payload = JSON.parse(options.body); } catch (_err) { payload = {}; }
+                    }
+                    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) payload = {};
+                    payload._browser_state = state || {};
+                    options.body = JSON.stringify(payload);
+                    options.headers = new Headers(options.headers || {});
+                    if (!options.headers.has('Content-Type')) options.headers.set('Content-Type', 'application/json');
+                }
+                return options;
+            });
+        }
+        function persistResponseState(response) {
+            if (window.COMBINIX_STORAGE_MODE !== 'browser') return Promise.resolve(response);
+            return response.clone().json().then(function(data) {
+                if (data && data.csrf_token) updateCsrf(data.csrf_token);
+                if (data && data.browser_state) {
+                    return window.CombinixBrowserStorage.setState(data.browser_state).then(function(){ return response; });
+                }
+                return response;
+            }).catch(function(){ return response; });
+        }
+        function doFetch(resource, options) {
             options = options || {};
             var method = String(options.method || 'GET').toUpperCase();
-            var isMutation = ['POST','PUT','PATCH','DELETE'].indexOf(method) >= 0;
-            if (isMutation) {
-                options.headers = new Headers(options.headers || {});
-                options.headers.set('X-CSRF-Token', currentCsrf());
-            }
-
-            return originalFetch(resource, options).then(function(response) {
-                if (!isMutation || response.status !== 403 || options.__csrfRetried) {
-                    return response;
+            var isMutation = ['POST','PUT','PATCH','DELETE'].indexOf(method) >= 0 && sameOrigin(resource);
+            var prep = isMutation ? attachBrowserState(options) : Promise.resolve(options);
+            return prep.then(function(finalOptions) {
+                if (isMutation) {
+                    finalOptions.headers = new Headers(finalOptions.headers || {});
+                    finalOptions.headers.set('X-CSRF-Token', currentCsrf());
                 }
-                return response.clone().json().then(function(data) {
-                    if (!data || !data.csrf_refresh || !data.csrf_token) {
-                        return response;
-                    }
-                    updateCsrf(data.csrf_token);
-                    options.__csrfRetried = true;
-                    options.headers = new Headers(options.headers || {});
-                    options.headers.set('X-CSRF-Token', data.csrf_token);
-                    return originalFetch(resource, options);
-                }).catch(function() {
-                    return response;
+                return originalFetch(resource, finalOptions).then(function(response) {
+                    return persistResponseState(response).then(function(savedResponse) {
+                        if (!isMutation || savedResponse.status !== 403 || finalOptions.__csrfRetried) return savedResponse;
+                        return savedResponse.clone().json().then(function(data) {
+                            if (!data || !data.csrf_refresh || !data.csrf_token) return savedResponse;
+                            updateCsrf(data.csrf_token);
+                            finalOptions.__csrfRetried = true;
+                            finalOptions.headers = new Headers(finalOptions.headers || {});
+                            finalOptions.headers.set('X-CSRF-Token', data.csrf_token);
+                            return originalFetch(resource, finalOptions).then(persistResponseState);
+                        }).catch(function(){ return savedResponse; });
+                    });
                 });
             });
-        };
+        }
+        window.fetch = doFetch;
     })();
     </script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
@@ -289,8 +353,44 @@
     </script>
 
     <footer class="app-footer text-center text-muted py-3">
-        <small>Combinix Lovelace {{ app_version }} · modo local · dados armazenados neste computador</small>
+        {% if is_browser_storage %}
+        <small>Combinix Lovelace {{ app_version }} · modo web demonstrativo · dados armazenados somente neste navegador</small>
+        {% else %}
+        <small>Combinix Lovelace {{ app_version }} · modo local · dados armazenados nesta pasta do computador</small>
+        {% endif %}
     </footer>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function(){
+        if (window.COMBINIX_STORAGE_MODE !== 'browser' || !window.CombinixBrowserStorage) return;
+        var usage=document.getElementById('browserStorageUsage');
+        var backend=document.getElementById('browserStorageBackend');
+        function refreshStorageInfo(){
+            window.CombinixBrowserStorage.estimate().then(function(info){
+                if(backend) backend.textContent=info.backend;
+                if(usage){
+                    var quota=info.quota ? info.formatBytes(info.quota) : 'limite definido pelo navegador';
+                    var warning=info.stateBytes > (2.5 * 1024 * 1024) ? ' · atenção: exporte um backup e limpe resultados antigos antes de continuar' : '';
+                    usage.textContent='Estado atual: '+info.formatBytes(info.stateBytes)+' · uso total desta origem: '+info.formatBytes(info.usage)+' de '+quota+' · '+(info.persisted?'armazenamento protegido':'proteção adicional ainda não concedida')+warning;
+                    usage.classList.toggle('text-danger', info.stateBytes > (2.5 * 1024 * 1024));
+                }
+            });
+        }
+        refreshStorageInfo();
+        var btn=document.getElementById('requestPersistentStorageBtn');
+        if(btn) btn.addEventListener('click',function(){
+            window.CombinixBrowserStorage.requestPersistence().then(function(ok){
+                alert(ok ? '✅ O navegador concedeu proteção adicional ao armazenamento deste site.' : 'ℹ️ O navegador não concedeu proteção adicional. Os dados continuam salvos neste navegador; mantenha backups JSON periódicos.');
+                refreshStorageInfo();
+            });
+        });
+        var clearBtn=document.getElementById('clearBrowserStorageBtn');
+        if(clearBtn) clearBtn.addEventListener('click',function(){
+            if(!confirm('Apagar as seleções, configurações e grades salvas somente neste navegador? Exporte um backup antes se precisar preservar os dados.')) return;
+            window.CombinixBrowserStorage.clearState().then(function(){ window.location.href='/'; });
+        });
+    });
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

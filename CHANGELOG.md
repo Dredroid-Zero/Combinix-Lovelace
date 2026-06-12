@@ -1,5 +1,26 @@
 # Changelog
 
+## 2.2.0-hybrid
+
+### Persistência web demonstrativa
+- Ativa automaticamente o modo navegador ao detectar execução na Vercel.
+- Utiliza **IndexedDB** como armazenamento principal e `localStorage` apenas como fallback.
+- Envia o snapshot ao servidor somente durante cada requisição e devolve o estado atualizado ao navegador.
+- Remove a necessidade de gravar `database/workspaces/local/state.json` na hospedagem.
+- Mantém o modo local anterior com persistência JSON atômica.
+
+### Interface e segurança
+- Mostra backend de armazenamento, tamanho do estado atual, uso total e cota informada pelo navegador.
+- Mantém margem operacional para a Vercel: estado web de até 3 MiB, backup importado de até 4 MiB e alerta visual acima de 2,5 MiB.
+- Adiciona botões para solicitar proteção adicional, exportar backup e limpar dados daquele navegador.
+- Implementa cookie CSRF próprio no modo web para funcionar corretamente em runtimes serverless.
+- Preserva parâmetros dos atalhos de recomendações durante o carregamento pelo IndexedDB.
+
+### Downloads e testes
+- Downloads JSON, exportação completa e Excel recebem o snapshot do navegador sem escrever arquivos na Vercel.
+- Adiciona testes isolados do modo Vercel, fluxo web completo e preservação de links navegáveis.
+- Suíte atual: 37 testes automatizados.
+
 ## 2.1.4-local
 
 ### Transição confiável entre Seleção e Configuração

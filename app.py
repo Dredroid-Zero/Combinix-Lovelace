@@ -9,7 +9,7 @@ if os.path.isdir(_VENDOR_DIR) and _VENDOR_DIR not in sys.path:
     sys.path.insert(0, _VENDOR_DIR)
 
 from collections import defaultdict
-from flask import Flask, render_template, request, session, jsonify, send_file
+from flask import Flask, render_template, request, session, jsonify, send_file, g
 from werkzeug.exceptions import RequestEntityTooLarge
 from persistence import save_state, load_state, reset_state, normalize_workspace_id
 from services.solver import (
@@ -20,15 +20,30 @@ from services.solver import (
     analisar_cobertura_professores as solver_analisar_cobertura_professores,
 )
 
-APP_VERSION = '2.1.4-local'
+APP_VERSION = '2.2.0-hybrid'
+
+# Persistência híbrida automática:
+# - local: JSONs dentro da pasta do projeto;
+# - browser: IndexedDB no navegador (ativado automaticamente na Vercel).
+STORAGE_MODE = 'browser' if (
+    os.environ.get('COMBINIX_STORAGE_MODE', '').strip().lower() == 'browser'
+    or bool(os.environ.get('VERCEL'))
+) else 'local'
+# O estado web cruza uma Vercel Function em cada operação. Mantemos margem
+# abaixo do limite de payload da hospedagem para comportar o envelope JSON.
+BROWSER_STATE_MAX_BYTES = 3 * 1024 * 1024
+_BROWSER_RESULTS_KEY = 'browser_resultados'
 
 app = Flask(__name__)
 
 def _load_or_create_secret_key():
-    # Variável de ambiente em publicação; segredo persistente e privado no modo local.
+    # Em produção, prefira COMBINIX_SECRET_KEY estável. No modo navegador a
+    # proteção CSRF usa cookie próprio e não depende da persistência em disco.
     env_secret = os.environ.get('COMBINIX_SECRET_KEY', '').strip()
     if env_secret:
         return env_secret
+    if STORAGE_MODE == 'browser':
+        return secrets.token_urlsafe(48)
     db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database')
     os.makedirs(db_dir, exist_ok=True)
     path = os.path.join(db_dir, '.secret_key')
@@ -47,30 +62,100 @@ def _load_or_create_secret_key():
         return secrets.token_urlsafe(48)
 
 app.secret_key = _load_or_create_secret_key()
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # backups JSON locais: máximo 2 MiB
+app.config['MAX_CONTENT_LENGTH'] = (4 if STORAGE_MODE == 'browser' else 16) * 1024 * 1024  # backups: margem segura na Vercel
 
 def _workspace_id():
-    # Hoje há somente o workspace local. Após login, usar aqui o ID do coordenador autenticado.
-    workspace = normalize_workspace_id(session.get('workspace_id', 'local'))
+    # No modo navegador, o workspace real mora no IndexedDB daquela origem.
+    # Após login, este identificador poderá ser substituído pelo ID do usuário.
+    default = 'browser' if STORAGE_MODE == 'browser' else 'local'
+    workspace = normalize_workspace_id(session.get('workspace_id', default))
     session['workspace_id'] = workspace
     return workspace
 
+
 def _csrf_token():
+    """Token CSRF estável também em runtimes serverless.
+
+    No modo navegador usamos double-submit cookie: o valor enviado pelo HTML é
+    comparado com o cookie do próprio domínio. Assim, um novo processo da Vercel
+    não invalida a página aberta. No modo local preservamos a sessão Flask.
+    """
+    if STORAGE_MODE == 'browser':
+        token = getattr(g, '_combinix_csrf_token', None)
+        if token:
+            return token
+        token = request.cookies.get('combinix_csrf', '').strip() or secrets.token_urlsafe(32)
+        g._combinix_csrf_token = token
+        return token
     token = session.get('_csrf_token')
     if not token:
         token = secrets.token_urlsafe(32)
         session['_csrf_token'] = token
     return token
 
-def _hydrate_persisted_state():
-    """Carrega o estado grande do workspace para uso durante esta requisição.
 
-    O Flask usa cookie assinado por padrão. Disciplinas, professores e suas
-    configurações podem ultrapassar com facilidade o limite prático do cookie.
-    Por isso, esses dados vivem no JSON local e entram na sessão apenas durante
-    o processamento da requisição. O ``after_request`` remove os campos grandes
-    antes de enviar o cookie ao navegador.
-    """
+def _decode_browser_state(raw):
+    if raw in (None, ''):
+        return {}
+    if isinstance(raw, str):
+        if len(raw.encode('utf-8')) > BROWSER_STATE_MAX_BYTES:
+            raise ValueError('Estado do navegador acima do limite permitido.')
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError('Estado do navegador inválido.') from exc
+    if not isinstance(raw, dict):
+        raise ValueError('Estado do navegador inválido.')
+    try:
+        encoded = json.dumps(raw, ensure_ascii=False).encode('utf-8')
+    except (TypeError, ValueError) as exc:
+        raise ValueError('Estado do navegador inválido.') from exc
+    if len(encoded) > BROWSER_STATE_MAX_BYTES:
+        raise ValueError('Estado do navegador acima do limite permitido.')
+    return raw
+
+
+def _browser_state_from_request():
+    raw = None
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        if isinstance(payload, dict):
+            raw = payload.get('_browser_state')
+    if raw is None:
+        raw = request.form.get('browser_state') or request.form.get('_browser_state')
+    return _decode_browser_state(raw)
+
+
+def _hydrate_browser_state(estado):
+    estado = estado if isinstance(estado, dict) else {}
+    for key in _SESSION_KEYS:
+        default = {} if key in DICT_KEYS else []
+        value = estado.get(key, default)
+        if key in DICT_KEYS:
+            session[key] = copy.deepcopy(value if isinstance(value, dict) else default)
+        else:
+            session[key] = copy.deepcopy(value if isinstance(value, list) else default)
+    session['tema'] = estado.get('tema', 'claro') if estado.get('tema') in {'claro', 'escuro'} else 'claro'
+    resultados = estado.get(_BROWSER_RESULTS_KEY, {})
+    session[_BROWSER_RESULTS_KEY] = copy.deepcopy(resultados if isinstance(resultados, dict) else {})
+    session.modified = True
+
+
+def _browser_snapshot():
+    data = {key: copy.deepcopy(session.get(key, {} if key in DICT_KEYS else [])) for key in _SESSION_KEYS}
+    data['tema'] = session.get('tema', 'claro') if session.get('tema') in {'claro', 'escuro'} else 'claro'
+    resultados = session.get(_BROWSER_RESULTS_KEY, {})
+    data[_BROWSER_RESULTS_KEY] = copy.deepcopy(resultados if isinstance(resultados, dict) else {})
+    data['_schema_version'] = 2
+    data['_saved_at'] = __import__('datetime').datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+    return data
+
+
+def _hydrate_persisted_state():
+    """Carrega o estado grande para uso apenas durante a requisição atual."""
+    if STORAGE_MODE == 'browser':
+        _hydrate_browser_state(_browser_state_from_request())
+        return
     estado = load_state(_workspace_id())
     for key in _SESSION_KEYS:
         session[key] = copy.deepcopy(estado.get(key, {} if key in DICT_KEYS else []))
@@ -84,38 +169,68 @@ def _hydrate_persisted_state():
 
 @app.before_request
 def _seguranca_basica():
+    if request.endpoint == 'static':
+        return None
     _workspace_id()
     token = _csrf_token()
-    _hydrate_persisted_state()
+    try:
+        _hydrate_persisted_state()
+    except ValueError as exc:
+        return jsonify({'status': 'erro', 'mensagem': str(exc)}), 400
     if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
         supplied = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
         if not supplied or not hmac.compare_digest(str(supplied), str(token)):
-            # A página pode permanecer aberta enquanto o servidor local é reiniciado.
-            # Nesse caso, o navegador ainda envia o token antigo. Devolvemos o token
-            # atual para que a interface refaça a operação automaticamente uma vez.
             return jsonify({
                 'status': 'erro',
                 'mensagem': 'Sessão renovada automaticamente. Tentando salvar novamente...',
                 'csrf_token': token,
                 'csrf_refresh': True,
             }), 403
+    return None
 
 
 @app.after_request
 def _minimizar_cookie_da_sessao(response):
-    """Mantém no cookie apenas identificadores pequenos e o token CSRF."""
+    """Mantém cookies pequenos e devolve o snapshot ao IndexedDB no modo web."""
+    if request.endpoint != 'static' and STORAGE_MODE == 'browser':
+        # Cookie CSRF próprio: independente da chave temporária de uma função serverless.
+        response.set_cookie(
+            'combinix_csrf', _csrf_token(), max_age=60 * 60 * 24 * 365,
+            secure=bool(request.is_secure), httponly=True, samesite='Lax'
+        )
+        if (request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}
+                and response.is_json and not getattr(response, 'direct_passthrough', False)):
+            payload = response.get_json(silent=True)
+            if isinstance(payload, dict):
+                payload['browser_state'] = _browser_snapshot()
+                payload['storage_mode'] = 'browser'
+                response.set_data(json.dumps(payload, ensure_ascii=False))
+                response.headers['Content-Type'] = 'application/json; charset=utf-8'
+                response.headers['Content-Length'] = str(len(response.get_data()))
     for key in _SESSION_KEYS:
         session.pop(key, None)
+    session.pop(_BROWSER_RESULTS_KEY, None)
+    if STORAGE_MODE == 'browser':
+        session.pop('resultado_token', None)
     return response
 
 
 @app.context_processor
 def _inject_security_context():
-    return {'csrf_token': _csrf_token(), 'app_version': APP_VERSION}
+    browser_state_bootstrap = None
+    if STORAGE_MODE == 'browser' and request.method == 'POST' and request.endpoint in {'index', 'config'}:
+        browser_state_bootstrap = _browser_snapshot()
+    return {
+        'csrf_token': _csrf_token(),
+        'app_version': APP_VERSION,
+        'storage_mode': STORAGE_MODE,
+        'is_browser_storage': STORAGE_MODE == 'browser',
+        'browser_state_bootstrap': browser_state_bootstrap,
+    }
 
 @app.errorhandler(RequestEntityTooLarge)
 def _arquivo_grande(_exc):
-    return jsonify({'status':'erro','mensagem':'Arquivo muito grande. O backup JSON deve ter no máximo 2 MiB.'}), 413
+    return jsonify({'status':'erro','mensagem':'Arquivo muito grande. O estado ou backup JSON deve ter no máximo 16 MiB.'}), 413
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ARMAZENAMENTO DE RESULTADOS — fora da session (evita cookie >4KB)
@@ -128,6 +243,8 @@ _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTADOS_FILE = os.path.join(_APP_DIR, 'database', 'resultados.json')
 
 def _load_resultados_from_disk():
+    if STORAGE_MODE != 'local':
+        return
     """
     Carrega store de resultados do disco (sobrevive reinício do servidor).
     Resiliente a JSON corrompido — em caso de erro, ignora o arquivo (não crasha).
@@ -151,6 +268,8 @@ def _load_resultados_from_disk():
             pass
 
 def _save_resultados_to_disk():
+    if STORAGE_MODE != 'local':
+        return
     """
     Persiste store em disco de forma ATÔMICA:
     escreve em arquivo temporário e usa os.replace (rename atômico).
@@ -180,7 +299,11 @@ def _novo_token():
     return uuid.uuid4().hex[:16]  # 16 chars (8 bytes) é suficiente
 
 def _store_resultados(dados):
-    """Armazena resultados vinculados ao workspace atual."""
+    """Armazena resultados no disco local ou no snapshot devolvido ao navegador."""
+    if STORAGE_MODE == 'browser':
+        session[_BROWSER_RESULTS_KEY] = copy.deepcopy(dados if isinstance(dados, dict) else {})
+        session.modified = True
+        return 'browser'
     token_antigo = session.get('resultado_token')
     if token_antigo and token_antigo in RESULTADOS_STORE:
         del RESULTADOS_STORE[token_antigo]
@@ -190,7 +313,10 @@ def _store_resultados(dados):
     return token
 
 def _get_resultados():
-    """Retorna somente os resultados do workspace atual."""
+    """Retorna resultados do workspace local ou do IndexedDB enviado pelo navegador."""
+    if STORAGE_MODE == 'browser':
+        dados = session.get(_BROWSER_RESULTS_KEY, {})
+        return copy.deepcopy(dados if isinstance(dados, dict) else {})
     token = session.get('resultado_token')
     if not token or token not in RESULTADOS_STORE:
         return {}
@@ -204,6 +330,11 @@ def _get_resultados():
     return dados if isinstance(dados, dict) else {}
 
 def _limpar_resultados_usuario():
+    if STORAGE_MODE == 'browser':
+        session[_BROWSER_RESULTS_KEY] = {}
+        session.pop('resultado_token', None)
+        session.modified = True
+        return
     token = session.get('resultado_token')
     if token and token in RESULTADOS_STORE:
         del RESULTADOS_STORE[token]
@@ -529,12 +660,18 @@ def auto_save():
     """
     data = {k: session.get(k, {} if k in DICT_KEYS else []) for k in _SESSION_KEYS}
     data['tema'] = session.get('tema', 'claro')
+    if STORAGE_MODE == 'browser':
+        # O after_request devolve o snapshot atualizado para o IndexedDB.
+        return data
     data['resultado_token'] = session.get('resultado_token', '')
     if not save_state(data, _workspace_id()):
         raise OSError('Não foi possível gravar o estado local. Verifique se a pasta do Combinix permite escrita.')
     return data
 
 def carregar_estado_inicial():
+    if STORAGE_MODE == 'browser':
+        # A página foi hidratada pelo snapshot enviado pelo loader do IndexedDB.
+        return any(session.get(k) for k in _SESSION_KEYS)
     estado = load_state(_workspace_id())
     if estado:
         for k in _SESSION_KEYS:
@@ -573,13 +710,25 @@ def _remap_prof_disc_indices(disciplinas_antigas, disciplinas_novas, cfgs_prof):
     return cfgs_prof
 
 # ─── Páginas ───────────────────────────────────────────────────────────────
-@app.route('/')
+def _browser_loader_if_needed(target, download=False):
+    if STORAGE_MODE == 'browser' and request.method == 'GET':
+        return render_template('browser_loader.html', target=target, download=download)
+    return None
+
+
+@app.route('/', methods=['GET', 'POST'])
 def index():
+    loader = _browser_loader_if_needed(request.full_path.rstrip('?'))
+    if loader is not None:
+        return loader
     if 'disciplinas_selecionadas' not in session: carregar_estado_inicial()
     return render_template('index.html')
 
-@app.route('/config')
+@app.route('/config', methods=['GET', 'POST'])
 def config():
+    loader = _browser_loader_if_needed(request.full_path.rstrip('?'))
+    if loader is not None:
+        return loader
     if 'disciplinas_selecionadas' not in session: carregar_estado_inicial()
     disciplinas = session.get('disciplinas_selecionadas',[])
     professores = session.get('professores_selecionados',[])
@@ -610,8 +759,11 @@ def config():
                            return_to=return_to, selecao_restaurada=request.args.get('restaurado') == '1',
                            dias=DIAS, horarios=HORARIOS)
 
-@app.route('/generate')
+@app.route('/generate', methods=['GET', 'POST'])
 def generate():
+    loader = _browser_loader_if_needed(request.full_path.rstrip('?'))
+    if loader is not None:
+        return loader
     if 'disciplinas_selecionadas' not in session: carregar_estado_inicial()
     res = _get_resultados()
     return render_template('generate.html',
@@ -624,8 +776,11 @@ def generate():
         grades_com_prof=res.get('grades_com_prof',{}),
         relatorio=res.get('relatorio',{}), alteracoes_salvas=request.args.get('alteracoes') == '1', dias=DIAS, horarios=HORARIOS)
 
-@app.route('/resultados')
+@app.route('/resultados', methods=['GET', 'POST'])
 def resultados():
+    loader = _browser_loader_if_needed(request.full_path.rstrip('?'))
+    if loader is not None:
+        return loader
     res = _get_resultados()
     return render_template('generate.html', show_results=True,
         grade_disciplinas=res.get('grade_disciplinas',{}),
@@ -646,6 +801,7 @@ def api_status():
     status = _verificar_dados()  # Sempre relê do disco, não usa cache
     return jsonify({
         'ok': status['disciplinas']['ok'] and status['professores']['ok'],
+        'storage_mode': STORAGE_MODE,
         'disciplinas': {
             'total': len(status['disciplinas']['arquivos']),
             'cursos': sorted(f.replace('.json','') for f in status['disciplinas']['arquivos']),
@@ -751,11 +907,17 @@ def salvar_selecoes():
         disciplinas = _sanitize_selected_disciplines(data.get('disciplinas', []))
         professores = _sanitize_selected_professors(data.get('professores', []))
         _apply_selections(disciplinas, professores)
-        confirmado = load_state(_workspace_id())
-        disciplinas_confirmadas = confirmado.get('disciplinas_selecionadas', [])
-        professores_confirmados = confirmado.get('professores_selecionados', [])
-        if len(disciplinas_confirmadas) != len(disciplinas) or len(professores_confirmados) != len(professores):
-            raise OSError('A gravação local não pôde ser confirmada. Tente novamente ou verifique a permissão da pasta.')
+        if STORAGE_MODE == 'browser':
+            # A confirmação definitiva ocorre quando o frontend grava o snapshot
+            # devolvido pelo after_request no IndexedDB.
+            disciplinas_confirmadas = session.get('disciplinas_selecionadas', [])
+            professores_confirmados = session.get('professores_selecionados', [])
+        else:
+            confirmado = load_state(_workspace_id())
+            disciplinas_confirmadas = confirmado.get('disciplinas_selecionadas', [])
+            professores_confirmados = confirmado.get('professores_selecionados', [])
+            if len(disciplinas_confirmadas) != len(disciplinas) or len(professores_confirmados) != len(professores):
+                raise OSError('A gravação local não pôde ser confirmada. Tente novamente ou verifique a permissão da pasta.')
         return jsonify({
             'status': 'ok',
             'persistencia_confirmada': True,
@@ -1254,8 +1416,11 @@ def iniciar_geracao():
         logging.exception('[Combinix] Falha inesperada na geração'); return jsonify({'status':'erro','mensagem':'Erro interno ao gerar a grade. Revise os dados e tente novamente.'}), 500
 
 # ─── Download / Export / Import / Reset / Tema ────────────────────────────
-@app.route('/download/<tipo>')
+@app.route('/download/<tipo>', methods=['GET', 'POST'])
 def download(tipo):
+    loader = _browser_loader_if_needed(request.full_path.rstrip('?'), download=True)
+    if loader is not None:
+        return loader
     mapa = {'disciplinas':   ('grade_disciplinas',    'grade_disciplinas.json'),
             'professores':   ('grade_professores',    'grade_professores.json'),
             'horarios':      ('horarios_professores', 'horarios_professores.json'),
@@ -1269,8 +1434,11 @@ def download(tipo):
     return send_file(buf, mimetype='application/json', as_attachment=True, download_name=fn)
 
 
-@app.route('/download_excel')
+@app.route('/download_excel', methods=['GET', 'POST'])
 def download_excel():
+    loader = _browser_loader_if_needed(request.full_path.rstrip('?'), download=True)
+    if loader is not None:
+        return loader
     """
     Gera arquivo .xlsx com 4 abas, cada uma com uma versão da grade.
     Mantém o mesmo formato visual da interface (linhas=horários, colunas=dias).
@@ -1490,8 +1658,11 @@ def download_excel():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True, download_name='combinix_grade.xlsx')
 
-@app.route('/export')
+@app.route('/export', methods=['GET', 'POST'])
 def export():
+    loader = _browser_loader_if_needed(request.full_path.rstrip('?'), download=True)
+    if loader is not None:
+        return loader
     # Dados leves vêm da sessão
     data = {k: session.get(k, {} if k in DICT_KEYS else []) for k in _SESSION_KEYS}
     # Resultados vêm do store
@@ -1516,7 +1687,8 @@ def import_state():
         if not f: return jsonify({'status':'erro','mensagem':'Nenhum arquivo enviado'})
         raw = f.read()
         if len(raw) > app.config['MAX_CONTENT_LENGTH']:
-            return jsonify({'status':'erro','mensagem':'Arquivo muito grande. Limite: 2 MiB.'}), 413
+            limite_mib = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+            return jsonify({'status':'erro','mensagem':f'Arquivo muito grande. Limite neste modo: {limite_mib} MiB.'}), 413
         data = json.loads(raw.decode('utf-8'))
         if not isinstance(data, dict):
             return jsonify({'status':'erro','mensagem':'Backup inválido: o JSON principal deve ser um objeto.'}), 400
@@ -1584,7 +1756,8 @@ def reset():
     workspace = _workspace_id()
     _limpar_resultados_usuario()
     session.clear()
-    reset_state(workspace)
+    if STORAGE_MODE == 'local':
+        reset_state(workspace)
     return jsonify({'status':'ok'})
 
 @app.route('/reset_configuracoes', methods=['POST'])
@@ -1612,6 +1785,16 @@ def reset_resultados():
     session.modified = True
     auto_save()
     return jsonify({'status':'ok'})
+
+@app.route('/api/storage/status')
+def api_storage_runtime_status():
+    return jsonify({
+        'mode': STORAGE_MODE,
+        'browser_primary': 'IndexedDB' if STORAGE_MODE == 'browser' else None,
+        'browser_fallback': 'localStorage' if STORAGE_MODE == 'browser' else None,
+        'message': ('Dados armazenados neste navegador.' if STORAGE_MODE == 'browser' else 'Dados armazenados na pasta local do Combinix.'),
+    })
+
 
 @app.route('/salvar_tema', methods=['POST'])
 def salvar_tema():
