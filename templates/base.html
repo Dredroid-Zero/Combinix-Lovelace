@@ -230,7 +230,10 @@
                     if (typeof window.aguardarSalvamentoSelecoes === 'function') {
                         e.preventDefault();
                         var destino = btn.getAttribute('href');
-                        window.aguardarSalvamentoSelecoes()
+                        var confirmar = (typeof window.salvarSelecoesAntesDeAvancar === 'function')
+                            ? window.salvarSelecoesAntesDeAvancar()
+                            : window.aguardarSalvamentoSelecoes();
+                        confirmar
                             .then(function () { window.location.href = destino; })
                             .catch(function () { alert('Não foi possível salvar as seleções. Corrija o erro exibido antes de avançar.'); });
                     }

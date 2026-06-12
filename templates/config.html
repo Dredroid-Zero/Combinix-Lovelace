@@ -17,6 +17,13 @@
     <div class="config-summary-item"><i class="fas fa-object-group text-primary"></i><div><strong>{{ grupos_choque|length }}</strong><small>grupos de conflito</small></div></div>
     <div class="config-summary-item"><i class="fas fa-calendar-day text-primary"></i><div><strong>{{ 'ativado' if config_avancadas.estado_sabado != 'desativado' else 'desativado' }}</strong><small>sábado</small></div></div>
 </div>
+<div id="configSelectionRecoveryStatus" class="alert alert-info" role="status" style="display:none"></div>
+{% if selecao_restaurada %}
+<div class="alert alert-success" role="status">
+    <i class="fas fa-circle-check me-2"></i><strong>Seleções recuperadas.</strong>
+    A cópia de segurança deste navegador foi restaurada e já está disponível nesta configuração.
+</div>
+{% endif %}
 {% if return_to %}
 <div class="alert alert-info diagnostic-return-banner d-flex align-items-center justify-content-between flex-wrap gap-2" role="status">
     <div><i class="fas fa-route me-2"></i><strong>Você abriu esta configuração a partir de uma recomendação.</strong>
@@ -1320,5 +1327,35 @@ if (btnRC) btnRC.addEventListener('click', function(){ abrirResetGlobal('configu
 
 var btnRT = document.getElementById('resetTotalBtn');
 if (btnRT) btnRT.addEventListener('click', function(){ abrirResetGlobal('total'); });
+
+// Recuperação defensiva da transição Seleção → Configuração.
+// O estado principal continua no workspace do servidor. A cópia do navegador
+// só é usada quando a configuração chega completamente vazia, por exemplo
+// após reinício inesperado ou falha temporária de persistência entre páginas.
+(function recuperarSelecoesDoNavegadorSeNecessario(){
+    var backupKey='combinix.selecoes.v1';
+    var tentativaKey='combinix.selecoes.restore.attempted';
+    var status=document.getElementById('configSelectionRecoveryStatus');
+    function mostrar(classe,html){if(!status)return;status.className='alert '+classe;status.innerHTML=html;status.style.display='';}
+    if(Array.isArray(DISCIPLINAS_LIST)&&DISCIPLINAS_LIST.length){
+        try{sessionStorage.removeItem(tentativaKey);}catch(_e){}
+        return;
+    }
+    var backup=null;
+    try{backup=JSON.parse(localStorage.getItem(backupKey)||'null');}catch(_e){backup=null;}
+    if(!backup||!Array.isArray(backup.disciplinas)||backup.disciplinas.length===0||!Array.isArray(backup.professores)) return;
+    try{
+        if(sessionStorage.getItem(tentativaKey)==='1'){
+            mostrar('alert-warning','<i class="fas fa-triangle-exclamation me-2"></i><strong>Não foi possível restaurar automaticamente.</strong> Volte à <a class="alert-link" href="/">Seleção</a> e tente avançar novamente.');
+            return;
+        }
+        sessionStorage.setItem(tentativaKey,'1');
+    }catch(_e){}
+    mostrar('alert-info','<i class="fas fa-spinner fa-spin me-2"></i><strong>Recuperando as seleções salvas neste navegador...</strong>');
+    fetch('/salvar_selecoes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({disciplinas:backup.disciplinas,professores:backup.professores})})
+        .then(function(r){return r.json().then(function(d){if(!r.ok||d.status!=='ok')throw new Error(d.mensagem||'Falha ao restaurar seleções.');return d;});})
+        .then(function(){window.location.replace('/config?restaurado=1');})
+        .catch(function(err){mostrar('alert-warning','<i class="fas fa-triangle-exclamation me-2"></i><strong>Não foi possível restaurar automaticamente.</strong> '+String(err.message||err)+' <a class="alert-link" href="/">Voltar à Seleção</a>.');});
+})();
 </script>
 {% endblock %}

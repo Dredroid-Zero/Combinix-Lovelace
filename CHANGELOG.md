@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.4-local
+
+### Transição confiável entre Seleção e Configuração
+- Força uma gravação final ao clicar em **Próximo: Configurar**, mesmo após cliques rápidos.
+- O servidor só retorna sucesso depois de reler o JSON local e confirmar as quantidades de disciplinas e professores.
+- Adiciona o endpoint de leitura `/api/selecoes` para validar o estado persistido durante a navegação.
+- Mantém uma cópia defensiva das seleções no armazenamento local do navegador.
+- Caso a configuração abra completamente vazia, restaura automaticamente essa cópia uma única vez e informa a recuperação.
+- Erros de escrita na pasta local deixam de ser silenciosos e passam a gerar uma mensagem clara.
+
 ## 2.1.3-local
 
 ### Recuperação automática da sessão local

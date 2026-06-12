@@ -309,6 +309,19 @@ function atualizarUI() {
 
 var salvarSelecoesFila = Promise.resolve();
 var salvarSelecoesRevisao = 0;
+var COMBINIX_SELECTION_BACKUP_KEY = 'combinix.selecoes.v1';
+
+function salvarBackupSelecoesNoNavegador(snapshot) {
+    try {
+        localStorage.setItem(COMBINIX_SELECTION_BACKUP_KEY, JSON.stringify({
+            disciplinas: snapshot.disciplinas || [],
+            professores: snapshot.professores || [],
+            salvo_em: new Date().toISOString()
+        }));
+    } catch (_err) {
+        // O salvamento principal continua sendo o JSON local do workspace.
+    }
+}
 
 function atualizarStatusSelecoes(tipo, mensagem) {
     var el = document.getElementById('selectionSaveStatus');
@@ -347,8 +360,9 @@ function salvarSelecoes() {
             });
         });
     }).then(function (data) {
+        salvarBackupSelecoesNoNavegador(snapshot);
         if (revisao === salvarSelecoesRevisao) {
-            atualizarStatusSelecoes('salvo', data.disciplinas_salvas + ' disciplinas e ' + data.professores_salvos + ' professores salvos');
+            atualizarStatusSelecoes('salvo', data.disciplinas_salvas + ' disciplinas e ' + data.professores_salvos + ' professores salvos e confirmados');
             showAutoSave();
         }
         return data;
@@ -362,6 +376,13 @@ function salvarSelecoes() {
 
 window.aguardarSalvamentoSelecoes = function () {
     return salvarSelecoesFila;
+};
+
+// Antes de trocar de página, força uma última escrita com o estado atual.
+// Isso cobre cliques rápidos e confirma que o arquivo local realmente contém
+// as duas listas antes de abrir a configuração.
+window.salvarSelecoesAntesDeAvancar = function () {
+    return salvarSelecoes();
 };
 
 
@@ -725,8 +746,10 @@ document.addEventListener('DOMContentLoaded', function () {
         link.addEventListener('click', function (event) {
             event.preventDefault();
             var destino = this.getAttribute('href');
-            window.aguardarSalvamentoSelecoes()
-                .then(function () { window.location.href = destino; })
+            var confirmar = (typeof window.salvarSelecoesAntesDeAvancar === 'function')
+                ? window.salvarSelecoesAntesDeAvancar()
+                : window.aguardarSalvamentoSelecoes();
+            confirmar.then(function () { window.location.href = destino; })
                 .catch(function () { alert('Não foi possível salvar as seleções. Corrija o erro exibido antes de avançar.'); });
         });
     });

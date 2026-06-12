@@ -20,7 +20,7 @@ from services.solver import (
     analisar_cobertura_professores as solver_analisar_cobertura_professores,
 )
 
-APP_VERSION = '2.1.3-local'
+APP_VERSION = '2.1.4-local'
 
 app = Flask(__name__)
 
@@ -520,10 +520,19 @@ _SESSION_KEYS = ['disciplinas_selecionadas', 'professores_selecionados',
                  'grupos_choque', 'config_avancadas']
 
 def auto_save():
+    """Persiste o estado atual e confirma a escrita no disco.
+
+    Antes, as rotas retornavam sucesso mesmo quando o sistema operacional não
+    conseguia gravar o JSON local. Isso fazia a etapa de seleção aparentar estar
+    salva e a configuração abrir vazia. Agora a falha é propagada para a
+    interface com uma mensagem clara.
+    """
     data = {k: session.get(k, {} if k in DICT_KEYS else []) for k in _SESSION_KEYS}
     data['tema'] = session.get('tema', 'claro')
     data['resultado_token'] = session.get('resultado_token', '')
-    save_state(data, _workspace_id())
+    if not save_state(data, _workspace_id()):
+        raise OSError('Não foi possível gravar o estado local. Verifique se a pasta do Combinix permite escrita.')
+    return data
 
 def carregar_estado_inicial():
     estado = load_state(_workspace_id())
@@ -598,7 +607,8 @@ def config():
                            config_disciplinas=config_disc, config_professores=config_prof,
                            cobertura_professores=cobertura_professores,
                            grupos_choque=grupos_choque, config_avancadas=config_avancadas,
-                           return_to=return_to, dias=DIAS, horarios=HORARIOS)
+                           return_to=return_to, selecao_restaurada=request.args.get('restaurado') == '1',
+                           dias=DIAS, horarios=HORARIOS)
 
 @app.route('/generate')
 def generate():
@@ -734,19 +744,43 @@ def salvar_selecoes():
 
     Evita a condição de corrida da versão anterior, que disparava duas
     requisições concorrentes e podia deixar apenas metade da seleção gravada.
+    A resposta só confirma sucesso depois de reler o JSON persistido.
     """
     try:
         data = request.get_json(force=True, silent=True) or {}
         disciplinas = _sanitize_selected_disciplines(data.get('disciplinas', []))
         professores = _sanitize_selected_professors(data.get('professores', []))
         _apply_selections(disciplinas, professores)
+        confirmado = load_state(_workspace_id())
+        disciplinas_confirmadas = confirmado.get('disciplinas_selecionadas', [])
+        professores_confirmados = confirmado.get('professores_selecionados', [])
+        if len(disciplinas_confirmadas) != len(disciplinas) or len(professores_confirmados) != len(professores):
+            raise OSError('A gravação local não pôde ser confirmada. Tente novamente ou verifique a permissão da pasta.')
         return jsonify({
             'status': 'ok',
-            'disciplinas_salvas': len(disciplinas),
-            'professores_salvos': len(professores),
+            'persistencia_confirmada': True,
+            'disciplinas_salvas': len(disciplinas_confirmadas),
+            'professores_salvos': len(professores_confirmados),
         })
     except ValueError as exc:
         return jsonify({'status':'erro', 'mensagem':str(exc)}), 400
+    except OSError as exc:
+        logging.warning('[Combinix] Falha ao persistir seleções: %s', exc)
+        return jsonify({'status':'erro', 'mensagem':str(exc)}), 500
+
+
+@app.route('/api/selecoes')
+def api_selecoes():
+    """Expõe uma leitura pequena do estado salvo para confirmar a navegação."""
+    disciplinas = session.get('disciplinas_selecionadas', [])
+    professores = session.get('professores_selecionados', [])
+    return jsonify({
+        'status': 'ok',
+        'disciplinas': disciplinas,
+        'professores': professores,
+        'disciplinas_salvas': len(disciplinas),
+        'professores_salvos': len(professores),
+    })
 
 
 @app.route('/selecionar_disciplinas', methods=['POST'])

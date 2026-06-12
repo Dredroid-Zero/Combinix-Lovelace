@@ -102,6 +102,29 @@ class AppRoutesTests(unittest.TestCase):
         self.assertEqual([d['nome'] for d in state['disciplinas_selecionadas']], ['Cálculo I', 'Álgebra'])
         self.assertEqual([p['nome'] for p in state['professores_selecionados']], ['Ada', 'Grace'])
 
+    def test_confirmacao_de_salvamento_e_leitura_para_avanco(self):
+        discs = [{'nome': 'Transição', 'codigo': 'TR1', 'curso': 'Teste', 'semestre': 1, 'carga_horaria': 60}]
+        profs = [{'nome': 'Docente da Transição'}]
+        response = self.client.post('/salvar_selecoes', json={
+            'disciplinas': discs,
+            'professores': profs,
+        }, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json['persistencia_confirmada'])
+        leitura = self.client.get('/api/selecoes')
+        self.assertEqual(leitura.status_code, 200)
+        self.assertEqual(leitura.json['disciplinas_salvas'], 1)
+        self.assertEqual(leitura.json['professores_salvos'], 1)
+        configuracao = self.client.get('/config')
+        self.assertIn('Transição'.encode(), configuracao.data)
+        self.assertIn('Docente da Transição'.encode(), configuracao.data)
+
+    def test_configuracao_inclui_recuperacao_defensiva_do_navegador(self):
+        response = self.client.get('/config')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'combinix.selecoes.v1', response.data)
+        self.assertIn(b'Recuperando as sele', response.data)
+
     def test_cookie_permanece_pequeno_com_catalogo_grande(self):
         discs = [
             {'nome': f'Disciplina {i}', 'codigo': f'D{i}', 'curso': 'Teste', 'semestre': (i % 10) + 1, 'carga_horaria': 60}
