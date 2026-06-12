@@ -11,6 +11,27 @@
     </div>
 </div>
 
+<div class="config-summary-grid mb-3" aria-label="Resumo da configuração">
+    <div class="config-summary-item"><i class="fas fa-book text-primary"></i><div><strong>{{ disciplinas|length }}</strong><small>disciplinas</small></div></div>
+    <div class="config-summary-item"><i class="fas fa-user-tie text-primary"></i><div><strong>{{ professores|length }}</strong><small>professores</small></div></div>
+    <div class="config-summary-item"><i class="fas fa-object-group text-primary"></i><div><strong>{{ grupos_choque|length }}</strong><small>grupos de conflito</small></div></div>
+    <div class="config-summary-item"><i class="fas fa-calendar-day text-primary"></i><div><strong>{{ 'ativado' if config_avancadas.estado_sabado != 'desativado' else 'desativado' }}</strong><small>sábado</small></div></div>
+</div>
+{% if return_to %}
+<div class="alert alert-info diagnostic-return-banner d-flex align-items-center justify-content-between flex-wrap gap-2" role="status">
+    <div><i class="fas fa-route me-2"></i><strong>Você abriu esta configuração a partir de uma recomendação.</strong>
+    <small class="d-block mt-1">Faça o ajuste indicado e use o botão ao lado. As alterações serão salvas antes de voltar à geração.</small></div>
+    <button type="button" class="btn btn-primary" id="salvarVoltarGeracaoBtn">
+        <i class="fas fa-floppy-disk me-1"></i>Salvar alterações e voltar para gerar
+    </button>
+</div>
+{% endif %}
+{% if disciplinas and not professores %}
+<div class="alert alert-warning" role="alert"><i class="fas fa-user-slash me-2"></i>
+    Nenhum professor foi selecionado. A grade poderá ser montada sem atribuição docente, mas o relatório indicará essa pendência.
+</div>
+{% endif %}
+
 <ul class="nav nav-tabs mb-3" id="configTabs">
     <li class="nav-item"><a class="nav-link active" href="#" data-tab="disciplinas">
         <i class="fas fa-book me-1"></i>Disciplinas
@@ -50,7 +71,7 @@
     {% for d in disciplinas %}
     {% set disc_idx = loop.index0 %}
     {% set cfg = config_disciplinas[disc_idx] if disc_idx < config_disciplinas|length
-                 else {'tipo':'interna','aulas_semanais':2,'semestre_oferta':1,'fixacoes':[],'restricoes':[]} %}
+                 else {'tipo':'interna','aulas_semanais':2,'semestre_oferta':1,'fixacoes':[],'restricoes':[],'permitir_multiplos_professores':False,'professores_fixos':[]} %}
     <div class="card mb-3" id="card-disc-{{ disc_idx }}">
         <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div>
@@ -93,6 +114,54 @@
                            data-idx="{{ disc_idx }}" value="{{ cfg.semestre_oferta }}" min="1" max="10">
                 </div>
             </div>
+            <div class="teacher-assignment-panel mb-3" data-disc-idx="{{ disc_idx }}">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                    <div>
+                        <p class="section-title mb-1"><i class="fas fa-chalkboard-user me-1"></i>Atribuição docente</p>
+                        <small class="text-muted">Defina quem poderá assumir a disciplina sem precisar fixar os horários.</small>
+                    </div>
+                    <span class="chip teacher-assignment-status" id="teacher-status-{{ disc_idx }}">Automática</span>
+                </div>
+                <div class="external-teacher-note" id="external-note-{{ disc_idx }}" {% if cfg.tipo != 'externa' %}style="display:none"{% endif %}>
+                    <i class="fas fa-building-columns me-2"></i>
+                    <div><strong>Professor externo</strong><small class="d-block">Esta disciplina pertence a outro curso. Ela ocupará horário na grade, mas não utilizará os professores selecionados aqui.</small></div>
+                </div>
+                <div class="internal-teacher-controls" id="internal-teacher-controls-{{ disc_idx }}" {% if cfg.tipo == 'externa' %}style="display:none"{% endif %}>
+                    {% if professores %}
+                    <div class="fixed-teachers-grid" data-idx="{{ disc_idx }}">
+                        {% for p in professores %}
+                        <label class="fixed-teacher-option">
+                            <input class="form-check-input professor-fixo-disciplina" type="checkbox"
+                                   data-idx="{{ disc_idx }}" value="{{ p.nome }}"
+                                   {% if p.nome in cfg.get('professores_fixos', []) %}checked{% endif %}>
+                            <span><i class="fas fa-user-lock me-1"></i>{{ p.nome }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        Sem professor fixo, o motor escolhe um docente entre os compatíveis marcados na aba <strong>Professores</strong>.
+                        Ao reservar, esta disciplina deixa de ficar disponível para os demais docentes.
+                    </small>
+                    {% else %}
+                    <div class="alert alert-warning py-2 mb-2" style="font-size:.78rem">
+                        Selecione professores na primeira etapa para habilitar a reserva docente.
+                    </div>
+                    {% endif %}
+                    <div class="shared-teaching-box mt-3">
+                        <label class="d-flex align-items-start gap-3 mb-0" for="multiplos-prof-{{ disc_idx }}">
+                            <input class="form-check-input permitir-multiplos-professores" type="checkbox"
+                                   data-idx="{{ disc_idx }}" id="multiplos-prof-{{ disc_idx }}"
+                                   {% if cfg.permitir_multiplos_professores %}checked{% endif %}>
+                            <span>
+                                <strong class="d-block">Permitir docência compartilhada nesta disciplina</strong>
+                                <small class="text-muted d-block shared-teaching-hint" id="shared-hint-{{ disc_idx }}">
+                                    Desativado por padrão: todas as aulas ficam com um único professor. Ative somente quando desejar dividir a disciplina.
+                                </small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </div>
             <p class="section-title">Horários — 8 blocos de 1h (manhã+tarde; almoço bloqueado)</p>
             <div class="table-responsive">
                 <table class="table table-bordered mb-0" style="font-size:.78rem">
@@ -113,7 +182,8 @@
                         {% set is_r = slot in cfg.restricoes %}
                         <td class="slot-cell text-center {% if is_f %}slot-fixo{% elif is_r %}slot-restrito{% else %}slot-livre{% endif %}"
                             data-dia="{{ dia }}" data-hora="{{ hora }}" data-idx="{{ disc_idx }}"
-                            data-state="{% if is_f %}fixo{% elif is_r %}restrito{% else %}livre{% endif %}">
+                            data-state="{% if is_f %}fixo{% elif is_r %}restrito{% else %}livre{% endif %}"
+                            role="button" tabindex="0" aria-label="{{ d.nome }}: {{ dia }}, {{ hora }}. Alternar livre, fixo ou restrito">
                             {% if is_f %}🔒 Fixa{% elif is_r %}🚫{% else %}—{% endif %}
                         </td>
                         {% endfor %}
@@ -158,11 +228,11 @@
     {% else %}
     <div class="alert alert-info mb-3" style="font-size:.82rem">
         <i class="fas fa-hand-pointer me-2"></i>
-        Clique num professor para configurar. As colunas de disciplinas refletem o tipo definido em "Disciplinas".
+        Clique num professor para configurar. As disciplinas reservadas diretamente na aba <strong>Disciplinas</strong> aparecem bloqueadas para o docente escolhido e deixam de ficar disponíveis para os demais.
     </div>
     <div class="row g-3">
         {% for p in professores %}{% set pi = loop.index0 %}
-        {% set cp = config_professores[pi] if pi < config_professores|length else {'disciplinas_internas':[],'carga_maxima':20,'disponibilidade':[]} %}
+        {% set cp = config_professores[pi] if pi < config_professores|length else {'disciplinas_internas':[],'carga_alvo':20,'carga_maxima':20,'disponibilidade':[]} %}
         <div class="col-md-6 col-lg-4">
             <div class="card prof-card h-100" data-prof-idx="{{ pi }}">
                 <div class="card-body">
@@ -170,14 +240,26 @@
                         <i class="fas fa-user-tie text-primary"></i>
                         <strong style="font-size:.9rem">{{ p.nome }}</strong>
                     </div>
-                    <div class="d-flex gap-2 flex-wrap mb-3" style="font-size:.75rem">
+                    {% set cob = cobertura_professores.get(p.nome, {}) %}
+                    <div class="d-flex gap-2 flex-wrap mb-2" style="font-size:.75rem">
                         <span class="chip chip-lilac"><i class="fas fa-book me-1"></i>
-                            <span class="prof-ndisc" data-prof-idx="{{ pi }}">{{ cp.disciplinas_internas|length }}</span> disc.
+                            <span class="prof-ndisc" data-prof-idx="{{ pi }}">{{ cob.get('disciplinas_disponiveis', cp.disciplinas_internas|length) }}</span> disc.
                         </span>
-                        <span class="chip chip-teal"><i class="fas fa-clock me-1"></i>
-                            <span class="prof-ncarga" data-prof-idx="{{ pi }}">{{ cp.carga_maxima }}</span>h/sem
+                        <span class="chip chip-teal"><i class="fas fa-bullseye me-1"></i>
+                            <span class="prof-nalvo" data-prof-idx="{{ pi }}">{{ cp.get('carga_alvo', cp.carga_maxima) }}</span>h alvo
+                        </span>
+                        <span class="chip"><i class="fas fa-gauge-high me-1"></i>
+                            <span class="prof-ncarga" data-prof-idx="{{ pi }}">{{ cp.carga_maxima }}</span>h máx.
                         </span>
                     </div>
+                    <div class="coverage-summary {% if cob.get('cobertura_suficiente') %}coverage-ok{% else %}coverage-warning{% endif %}" data-prof-summary="{{ pi }}">
+                        <i class="fas {% if cob.get('cobertura_suficiente') %}fa-circle-check{% else %}fa-triangle-exclamation{% endif %} me-1"></i>
+                        <span class="prof-cobertura-text" data-prof-idx="{{ pi }}">
+                            {{ cob.get('horas_disponiveis', 0) }}h potenciais · mínimo recomendado:
+                            {{ cob.get('minimo_disciplinas_necessarias') if cob.get('minimo_disciplinas_necessarias') is not none else 'não atingível' }} disciplina(s)
+                        </span>
+                    </div>
+                    <div class="mb-3"></div>
                     <button type="button" class="btn btn-sm btn-outline-secondary w-100 mb-2 prof-configurar"
                             data-prof-idx="{{ pi }}">
                         <i class="fas fa-cog me-1"></i>Configurar
@@ -328,7 +410,7 @@
                                 🔵 Ativado restrito — último recurso (nível 3 apenas)
                             </option>
                         </select>
-                        <small class="text-muted d-block mt-1">Fixações no sábado são SEMPRE respeitadas, independente deste estado.</small>
+                        <small class="text-muted d-block mt-1">Para evitar inconsistências, uma fixação no sábado só pode ser criada quando o sábado estiver ativado.</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Nível de Restrição</label>
@@ -383,8 +465,12 @@
         <!-- Export / Import / Reset — APENAS aqui -->
         <div class="col-md-6">
             <div class="card h-100">
-                <div class="card-header"><i class="fas fa-database text-primary me-2"></i>Dados e Backup</div>
-                <div class="card-body d-flex flex-column gap-3">
+                <div class="card-header"><i class="fas fa-toolbox text-primary me-2"></i>Manutenção Local</div>
+                <div class="card-body">
+                    <p class="text-muted mb-2" style="font-size:.82rem">Ferramentas ocasionais para backup e limpeza. O uso cotidiano não depende delas.</p>
+                    <details class="admin-tools">
+                    <summary><i class="fas fa-shield-halved me-2"></i>Ferramentas administrativas e backup</summary>
+                    <div class="d-flex flex-column gap-3 pt-3">
                     <div>
                         <strong class="d-block mb-1">📤 Exportar</strong>
                         <a href="/export" class="btn btn-outline-secondary w-100">
@@ -430,6 +516,8 @@
                             Apaga TUDO: seleções, configurações e grades. Mantém apenas arquivos base.
                         </small>
                     </div>
+                    </div>
+                    </details>
                 </div>
             </div>
         </div>
@@ -454,13 +542,27 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="section-title">Carga horária máxima semanal</p>
-                <div class="input-group mb-4" style="max-width:240px">
-                    <input type="number" class="form-control" id="profModalCarga" min="1" max="40" value="20">
-                    <span class="input-group-text">h/sem</span>
+                <p class="section-title">Carga docente semanal</p>
+                <div class="row g-3 mb-3" style="max-width:620px">
+                    <div class="col-md-6">
+                        <label class="form-label" for="profModalCargaAlvo">Carga que precisa cumprir</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="profModalCargaAlvo" min="0" max="100" value="20">
+                            <span class="input-group-text">h/sem</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="profModalCarga">Limite máximo permitido</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="profModalCarga" min="0" max="100" value="20">
+                            <span class="input-group-text">h/sem</span>
+                        </div>
+                    </div>
                 </div>
+                <div class="coverage-modal-box mb-4" id="profModalCobertura"></div>
 
                 <p class="section-title">Disciplinas que pode lecionar</p>
+                <div class="alert alert-info py-2 mb-3" id="profModalReservadasInfo" style="font-size:.78rem"></div>
                 <!-- 3 COLUNAS dinâmicas — refletem tipo salvo nas configs -->
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
@@ -509,7 +611,7 @@
                         {% for hora in horarios %}
                         {% if loop.index0 == 4 %}<tr><td class="text-muted mono">12:00-14:00</td>{% for dia in dias %}<td class="text-center text-muted" style="background:var(--bg2);font-style:italic;font-size:.7rem">almoço</td>{% endfor %}</tr>{% endif %}
                         <tr><td class="text-muted mono">{{ hora }}</td>
-                        {% for dia in dias %}<td class="slot-cell text-center slot-livre prof-disp-cell" data-dia="{{ dia }}" data-hora="{{ hora }}" data-state="disponivel">—</td>{% endfor %}
+                        {% for dia in dias %}<td class="slot-cell text-center slot-livre prof-disp-cell" data-dia="{{ dia }}" data-hora="{{ hora }}" data-state="disponivel" role="button" tabindex="0" aria-label="{{ dia }}, {{ hora }}. Alternar disponibilidade do professor">—</td>{% endfor %}
                         </tr>
                         {% endfor %}
                         </tbody>
@@ -565,6 +667,93 @@ var PROFESSORES_LIST   = {{ professores | tojson }};
 // Isso garante que a aba de professores reflita o tipo atual sem navegação
 var discConfigBuffer = JSON.parse(JSON.stringify(CONFIG_DISCIPLINAS));
 var profConfigBuffer = JSON.parse(JSON.stringify(CONFIG_PROFESSORES));
+
+function intSeguro(valor,padrao){
+    var n=parseInt(valor,10); return Number.isFinite(n)?n:padrao;
+}
+function fixosDisciplina(di){
+    var cfg=discConfigBuffer[di]||{}; return Array.isArray(cfg.professores_fixos)?cfg.professores_fixos.slice():[];
+}
+function professorIdxPorNome(nome){
+    for(var i=0;i<PROFESSORES_LIST.length;i++){ if((PROFESSORES_LIST[i]||{}).nome===nome) return i; }
+    return -1;
+}
+function lerFixosDoPainel(idx){
+    var nomes=[];
+    document.querySelectorAll('.professor-fixo-disciplina[data-idx="'+idx+'"]:checked').forEach(function(c){nomes.push(c.value);});
+    return nomes;
+}
+function cargaDisciplina(di){ return intSeguro((discConfigBuffer[di]||{}).aulas_semanais,2); }
+function minimoDisciplinasParaHoras(cargas,alvo){
+    if(alvo<=0) return 0; var soma=0;
+    cargas.slice().sort(function(a,b){return b-a;}).some(function(c,i){soma+=c;if(soma>=alvo){alvo=-(i+1);return true;}return false;});
+    return alvo<0?-alvo:null;
+}
+function indicesPermitidosProfessor(profNome){
+    var saida=[];
+    DISCIPLINAS_LIST.forEach(function(_d,di){var cfg=discConfigBuffer[di]||{};if((cfg.tipo||'interna')==='externa') return;var fixos=fixosDisciplina(di);if(!fixos.length||fixos.indexOf(profNome)!==-1) saida.push(di);});
+    return saida;
+}
+function sincronizarReservasNoBufferProfessores(){
+    profConfigBuffer.forEach(function(cfg,pi){
+        cfg=cfg||{}; var nome=(PROFESSORES_LIST[pi]||{}).nome||''; var atuais=(cfg.disciplinas_internas||[]).map(function(x){return String(x);}); var novos=[];
+        DISCIPLINAS_LIST.forEach(function(_d,di){
+            var cfgd=discConfigBuffer[di]||{}, fixos=fixosDisciplina(di), chave=String(di);
+            if((cfgd.tipo||'interna')==='externa') return;
+            if(fixos.length){ if(fixos.indexOf(nome)!==-1) novos.push(chave); }
+            else if(atuais.indexOf(chave)!==-1) novos.push(chave);
+        });
+        cfg.disciplinas_internas=novos; cfg.carga_alvo=intSeguro(cfg.carga_alvo,intSeguro(cfg.carga_maxima,20)); cfg.carga_maxima=intSeguro(cfg.carga_maxima,20); profConfigBuffer[pi]=cfg;
+    });
+    atualizarTodosCardsProfessores();
+}
+function calcularCoberturaProfessor(pi,selecionadasOverride,alvoOverride){
+    var cfg=profConfigBuffer[pi]||{}; var nome=(PROFESSORES_LIST[pi]||{}).nome||'';
+    var alvo=intSeguro(alvoOverride,intSeguro(cfg.carga_alvo,intSeguro(cfg.carga_maxima,20)));
+    var selecionadas=(selecionadasOverride||cfg.disciplinas_internas||[]).map(function(x){return String(x);});
+    DISCIPLINAS_LIST.forEach(function(_d,di){if(fixosDisciplina(di).indexOf(nome)!==-1&&selecionadas.indexOf(String(di))===-1) selecionadas.push(String(di));});
+    selecionadas=selecionadas.filter(function(x,i,a){return a.indexOf(x)===i&&indicesPermitidosProfessor(nome).indexOf(parseInt(x,10))!==-1;});
+    var horas=selecionadas.reduce(function(t,x){return t+cargaDisciplina(parseInt(x,10));},0);
+    var possiveis=indicesPermitidosProfessor(nome); var minimo=minimoDisciplinasParaHoras(possiveis.map(cargaDisciplina),alvo);
+    var extras=possiveis.filter(function(di){return selecionadas.indexOf(String(di))===-1;});
+    var faltam=Math.max(0,alvo-horas); var adicionais=faltam?minimoDisciplinasParaHoras(extras.map(cargaDisciplina),faltam):0;
+    return {alvo:alvo,horas:horas,quantidade:selecionadas.length,minimo:minimo,faltam:faltam,adicionais:adicionais,ok:horas>=alvo};
+}
+function atualizarCardProfessor(pi){
+    var cob=calcularCoberturaProfessor(pi); var nd=document.querySelector('.prof-ndisc[data-prof-idx="'+pi+'"]'); var na=document.querySelector('.prof-nalvo[data-prof-idx="'+pi+'"]'); var nc=document.querySelector('.prof-ncarga[data-prof-idx="'+pi+'"]'); var tx=document.querySelector('.prof-cobertura-text[data-prof-idx="'+pi+'"]'); var box=document.querySelector('[data-prof-summary="'+pi+'"]');
+    if(nd) nd.textContent=cob.quantidade; if(na) na.textContent=cob.alvo; if(nc) nc.textContent=intSeguro((profConfigBuffer[pi]||{}).carga_maxima,20);
+    if(tx) tx.textContent=cob.horas+'h potenciais · mínimo recomendado: '+(cob.minimo===null?'não atingível':cob.minimo)+' disciplina(s)';
+    if(box){box.classList.toggle('coverage-ok',cob.ok);box.classList.toggle('coverage-warning',!cob.ok);var ico=box.querySelector('i');if(ico){ico.className='fas '+(cob.ok?'fa-circle-check':'fa-triangle-exclamation')+' me-1';}}
+}
+function atualizarTodosCardsProfessores(){for(var i=0;i<PROFESSORES_LIST.length;i++) atualizarCardProfessor(i);}
+function atualizarPainelAtribuicaoDisc(idx,sincronizar){
+    var sel=document.querySelector('.tipo-disciplina[data-idx="'+idx+'"]'); var tipo=sel?sel.value:((discConfigBuffer[idx]||{}).tipo||'interna');
+    var note=document.getElementById('external-note-'+idx), controls=document.getElementById('internal-teacher-controls-'+idx);
+    var multi=document.querySelector('.permitir-multiplos-professores[data-idx="'+idx+'"]'); var status=document.getElementById('teacher-status-'+idx), hint=document.getElementById('shared-hint-'+idx);
+    discConfigBuffer[idx]=discConfigBuffer[idx]||{}; discConfigBuffer[idx].tipo=tipo;
+    if(tipo==='externa'){
+        document.querySelectorAll('.professor-fixo-disciplina[data-idx="'+idx+'"]').forEach(function(c){c.checked=false;});
+        discConfigBuffer[idx].professores_fixos=[]; discConfigBuffer[idx].permitir_multiplos_professores=false;
+        if(multi){multi.checked=false;multi.disabled=true;} if(note) note.style.display='flex'; if(controls) controls.style.display='none';
+        if(status){status.textContent='Professor externo';status.style.background='var(--lilac-subtle)';status.style.color='var(--lilac)';}
+    }else{
+        if(note) note.style.display='none'; if(controls) controls.style.display='';
+        var fixos=lerFixosDoPainel(idx); discConfigBuffer[idx].professores_fixos=fixos;
+        if(multi){if(fixos.length>1){multi.checked=true;multi.disabled=true;if(hint) hint.textContent='Ativada automaticamente: os professores fixos selecionados devem participar da mesma disciplina.';}else{multi.disabled=false;if(hint) hint.textContent='Desativado por padrão: todas as aulas ficam com um único professor. Ative somente quando desejar dividir a disciplina.';}discConfigBuffer[idx].permitir_multiplos_professores=!!multi.checked;}
+        if(status){status.textContent=fixos.length===0?'Automática':(fixos.length===1?'Fixa: '+fixos[0]:'Compartilhada: '+fixos.length+' professores');status.style.background=fixos.length?'var(--lilac-subtle)':'var(--primary-subtle)';status.style.color=fixos.length?'var(--lilac)':'var(--primary)';}
+    }
+    if(sincronizar!==false) sincronizarReservasNoBufferProfessores();
+}
+
+// Células interativas também funcionam com teclado (Enter ou espaço).
+document.addEventListener('keydown', function(event) {
+    var target = event.target;
+    if (!target || !target.classList || !target.classList.contains('slot-cell')) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        target.click();
+    }
+});
 </script>
 
 <style>
@@ -576,6 +765,22 @@ var profConfigBuffer = JSON.parse(JSON.stringify(CONFIG_PROFESSORES));
 .btn-xs { font-size:.65rem; padding:.15rem .4rem; line-height:1; }
 .card-col-disc .list-group-item { font-size:.8rem; padding:.45rem .7rem; }
 #resetConfirmInput.match { border-color:var(--rose); box-shadow:0 0 0 .2rem rgba(224,80,134,.15); }
+.teacher-assignment-panel { background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:1rem; }
+.fixed-teachers-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.5rem; max-height:150px; overflow:auto; padding:.25rem; }
+.fixed-teacher-option { display:flex; gap:.55rem; align-items:center; border:1px solid var(--border); border-radius:9px; padding:.58rem .7rem; background:var(--card); cursor:pointer; font-size:.78rem; transition:border-color .15s,background .15s,box-shadow .15s; }
+.fixed-teacher-option:hover { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-ring); }
+.fixed-teacher-option:has(input:checked) { border-color:var(--primary); background:var(--primary-subtle); }
+.shared-teaching-box { border:2px solid var(--lilac); background:var(--lilac-subtle); border-radius:10px; padding:.85rem .95rem; }
+.shared-teaching-box .form-check-input { width:1.3rem; height:1.3rem; margin-top:.12rem; border-color:var(--lilac); }
+.teacher-assignment-status { background:var(--primary-subtle); color:var(--primary); }
+.coverage-summary,.coverage-modal-box { border-radius:9px; padding:.52rem .68rem; font-size:.76rem; border:1px solid var(--border); }
+.coverage-ok { background:var(--success-subtle); color:var(--success); border-color:var(--success); }
+.coverage-warning { background:var(--warning-subtle); color:var(--warning); border-color:var(--warning); }
+.fixed-readonly { background:var(--primary-subtle)!important; border-left:3px solid var(--primary)!important; }
+.external-teacher-note { display:flex; align-items:flex-start; gap:.35rem; padding:.85rem; border:1px solid var(--lilac); border-radius:10px; background:var(--lilac-subtle); color:var(--lilac); font-size:.8rem; }
+.diagnostic-return-banner { position:sticky; top:10px; z-index:150; box-shadow:var(--shadow-sm); }
+.diagnostic-focus { animation:diagnosticPulse 1.6s ease-in-out 2; outline:3px solid var(--warning); outline-offset:4px; }
+@keyframes diagnosticPulse { 50% { outline-color:transparent; } }
 </style>
 
 <script>
@@ -636,23 +841,34 @@ document.querySelectorAll('.remover-disc').forEach(function(btn){
     });
 });
 
+function coletarConfigsDisciplinas(){
+    var configs=[];
+    document.querySelectorAll('.tipo-disciplina').forEach(function(sel){
+        var idx=parseInt(sel.getAttribute('data-idx'),10), tipo=sel.value;
+        var nas=document.querySelector('.aulas-semanais[data-idx="'+idx+'"]').value;
+        var nso=document.querySelector('.semestre-oferta[data-idx="'+idx+'"]').value;
+        var multi=document.querySelector('.permitir-multiplos-professores[data-idx="'+idx+'"]');
+        var fixos=tipo==='externa'?[]:lerFixosDoPainel(idx);
+        configs.push({idx:idx,tipo:tipo,aulas_semanais:nas,semestre_oferta:nso,permitir_multiplos_professores:tipo!=='externa'&&!!(multi&&multi.checked),professores_fixos:fixos});
+        discConfigBuffer[idx]=discConfigBuffer[idx]||{}; discConfigBuffer[idx].tipo=tipo; discConfigBuffer[idx].aulas_semanais=intSeguro(nas,2); discConfigBuffer[idx].semestre_oferta=intSeguro(nso,1); discConfigBuffer[idx].professores_fixos=fixos; discConfigBuffer[idx].permitir_multiplos_professores=tipo!=='externa'&&!!(multi&&multi.checked);
+    });
+    return configs;
+}
+function coletarConfigsProfessores(){
+    return profConfigBuffer.map(function(c,i){var maxima=intSeguro(c.carga_maxima,20);return{idx:i,disciplinas_internas:c.disciplinas_internas||[],carga_alvo:intSeguro(c.carga_alvo,maxima),carga_maxima:maxima,disponibilidade:c.disponibilidade||[]};});
+}
+function coletarConfigAvancadas(){return{estado_sabado:document.getElementById('estadoSabado').value,nivel_restricao:intSeguro(document.getElementById('nivelRestricao').value,3)};}
+
 // ── Salvar TODAS disciplinas + SINCRONIZAR buffer com prof modal ───────────
 var btnSD=document.getElementById('salvarTodasDiscBtn');
 if(btnSD){ btnSD.addEventListener('click',function(){
-    var configs=[];
-    document.querySelectorAll('.tipo-disciplina').forEach(function(sel){
-        var idx=parseInt(sel.getAttribute('data-idx'),10);
-        var tipo=sel.value;
-        var nas=document.querySelector('.aulas-semanais[data-idx="'+idx+'"]').value;
-        var nso=document.querySelector('.semestre-oferta[data-idx="'+idx+'"]').value;
-        configs.push({idx:idx,tipo:tipo,aulas_semanais:nas,semestre_oferta:nso});
-        // SINCRONIZAÇÃO IMEDIATA: atualizar buffer de tipos
-        if(discConfigBuffer[idx]) discConfigBuffer[idx].tipo=tipo;
-    });
+    var configs=coletarConfigsDisciplinas();
     btnSD.disabled=true; btnSD.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
     fetch('/salvar_todas_disciplinas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:configs})})
-    .then(function(r){return r.json();}).then(function(){
+    .then(function(r){return r.json();}).then(function(resp){
         btnSD.disabled=false; btnSD.innerHTML='<i class="fas fa-save me-2"></i>Salvar';
+        if(resp.status!=='ok'){ alert('⚠️ '+(resp.mensagem||'Não foi possível salvar as disciplinas.')); return; }
+        sincronizarReservasNoBufferProfessores();
         var fb=document.getElementById('salvarDiscFeedback'); fb.style.display='';
         showAutoSave(); setTimeout(function(){fb.style.display='none';},2500);
     }).catch(function(){
@@ -660,6 +876,13 @@ if(btnSD){ btnSD.addEventListener('click',function(){
         alert('❌ Erro ao salvar');
     });
 });}
+
+// ── Reservas docentes por disciplina ─────────────────────────────────────
+document.querySelectorAll('.professor-fixo-disciplina').forEach(function(c){c.addEventListener('change',function(){atualizarPainelAtribuicaoDisc(parseInt(this.getAttribute('data-idx'),10));});});
+document.querySelectorAll('.permitir-multiplos-professores').forEach(function(c){c.addEventListener('change',function(){var idx=parseInt(this.getAttribute('data-idx'),10);discConfigBuffer[idx]=discConfigBuffer[idx]||{};discConfigBuffer[idx].permitir_multiplos_professores=!!this.checked;});});
+document.querySelectorAll('.tipo-disciplina').forEach(function(sel){sel.addEventListener('change',function(){atualizarPainelAtribuicaoDisc(parseInt(this.getAttribute('data-idx'),10));});});
+DISCIPLINAS_LIST.forEach(function(_d,idx){atualizarPainelAtribuicaoDisc(idx,false);});
+sincronizarReservasNoBufferProfessores();
 
 // ── Modal de Reset Seguro ─────────────────────────────────────────────────
 var rmCtx={type:null,idx:null,onSuccess:null};
@@ -717,38 +940,42 @@ document.querySelectorAll('.restaurar-disc').forEach(function(btn){
 // ── Modal Professor ────────────────────────────────────────────────────────
 var profModalAtual={idx:null};
 
-function renderColProf(tipo,cid,marcadas){
-    var c=document.getElementById(cid); if(!c) return; c.innerHTML='';
-    var ms=(marcadas||[]).map(String); var found=false;
+function renderColProf(tipo,cid,marcadas,profIdx){
+    var c=document.getElementById(cid); if(!c) return 0; c.innerHTML='';
+    var ms=(marcadas||[]).map(String), profNome=(PROFESSORES_LIST[profIdx]||{}).nome||''; var found=false, ocultas=0;
     DISCIPLINAS_LIST.forEach(function(d,di){
-        // Usar discConfigBuffer (sincronizado) para tipo
-        var tp=(discConfigBuffer[di]||{}).tipo||'interna';
-        if(tp!==tipo) return; found=true;
-        var lbl=document.createElement('label');
-        lbl.className='list-group-item d-flex align-items-center gap-2 py-2'; lbl.style.cursor='pointer';
-        lbl.innerHTML='<input type="checkbox" class="form-check-input prof-modal-disc" data-tipo="'+tipo+'" value="'+di+'" '+(ms.indexOf(String(di))!==-1?'checked':'')+'>'
-                     +'<span style="font-size:.8rem">'+d.nome+' <small class="text-muted">('+((discConfigBuffer[di]||{}).tipo||'interna')+')</small></span>';
+        var cfgd=discConfigBuffer[di]||{}, tp=cfgd.tipo||'interna'; if(tp!==tipo) return; found=true;
+        if(tipo==='externa'){
+            var ext=document.createElement('div'); ext.className='list-group-item d-flex align-items-start gap-2 py-2 external-readonly';
+            ext.innerHTML='<i class="fas fa-building-columns mt-1"></i><span style="font-size:.8rem">'+escH(d.nome)+' <span class="chip chip-lilac ms-1">Professor externo</span><small class="text-muted d-block">Não utiliza os docentes deste curso.</small></span>'; c.appendChild(ext); return;
+        }
+        var fixos=fixosDisciplina(di), reservada=fixos.length>0, pertence=fixos.indexOf(profNome)!==-1;
+        if(reservada&&!pertence){ocultas++;return;}
+        var lbl=document.createElement('label'); lbl.className='list-group-item d-flex align-items-center gap-2 py-2'+(pertence?' fixed-readonly':''); lbl.style.cursor=pertence?'default':'pointer';
+        lbl.innerHTML='<input type="checkbox" class="form-check-input prof-modal-disc" data-tipo="'+tipo+'" value="'+di+'" '+((pertence||ms.indexOf(String(di))!==-1)?'checked ':'')+(pertence?'disabled ':'')+'>'
+                     +'<span style="font-size:.8rem">'+escH(d.nome)+' <small class="text-muted">('+escH(tp)+')</small>'+(pertence?' <span class="chip chip-lilac ms-1"><i class="fas fa-lock me-1"></i>fixa</span>':'')+'</span>';
         c.appendChild(lbl);
     });
-    if(!found) c.innerHTML='<div class="empty-state py-3"><small>Nenhuma '+tipo+'</small></div>';
+    if(!found) c.innerHTML='<div class="empty-state py-3"><small>Nenhuma '+tipo+' disponível</small></div>';
+    c.querySelectorAll('.prof-modal-disc').forEach(function(ch){ch.addEventListener('change',function(){atualizarCoberturaModal(profIdx);});});
+    return ocultas;
 }
-
+function atualizarCoberturaModal(idx){
+    if(idx===null||idx===undefined) return; var selecionadas=[]; document.querySelectorAll('.prof-modal-disc:checked').forEach(function(c){selecionadas.push(c.value);});
+    var alvo=intSeguro(document.getElementById('profModalCargaAlvo').value,20), cob=calcularCoberturaProfessor(idx,selecionadas,alvo), box=document.getElementById('profModalCobertura'); if(!box) return;
+    box.className='coverage-modal-box mb-4 '+(cob.ok?'coverage-ok':'coverage-warning');
+    var extra=cob.ok?'Cobertura potencial suficiente.':('Faltam '+cob.faltam+'h potenciais. '+(cob.adicionais===null?'Não há disciplinas livres suficientes.':'Vincule ao menos mais '+cob.adicionais+' disciplina(s).'));
+    box.innerHTML='<strong><i class="fas '+(cob.ok?'fa-circle-check':'fa-triangle-exclamation')+' me-1"></i>Cobertura da carga alvo</strong><br>'+cob.quantidade+' disciplina(s) vinculada(s) · '+cob.horas+'h potenciais para meta de '+cob.alvo+'h.<br><small>'+extra+' Mínimo estimado: '+(cob.minimo===null?'não atingível':cob.minimo)+' disciplina(s).</small>';
+}
 function abrirProfModal(idx){
-    var prof=PROFESSORES_LIST[idx]||{}; var cfg=profConfigBuffer[idx]||{disciplinas_internas:[],carga_maxima:20,disponibilidade:[]};
-    profModalAtual.idx=idx;
-    document.getElementById('profModalNome').textContent=prof.nome||'Professor';
-    document.getElementById('profModalCarga').value=cfg.carga_maxima||20;
-    renderColProf('interna','col-internas',cfg.disciplinas_internas);
-    renderColProf('externa','col-externas',cfg.disciplinas_internas);
-    renderColProf('cedida','col-cedidas',cfg.disciplinas_internas);
-    document.querySelectorAll('#profModalDisponibilidade .prof-disp-cell').forEach(function(c){
-        c.classList.remove('slot-restrito'); c.classList.add('slot-livre'); c.setAttribute('data-state','disponivel'); c.textContent='—';
-    });
-    (cfg.disponibilidade||[]).forEach(function(sl){
-        var c=document.querySelector('#profModalDisponibilidade .prof-disp-cell[data-dia="'+sl[0]+'"][data-hora="'+sl[1]+'"]');
-        if(c){c.classList.remove('slot-livre');c.classList.add('slot-restrito');c.setAttribute('data-state','indisponivel');c.textContent='🚫';}
-    });
-    new bootstrap.Modal(document.getElementById('profModal')).show();
+    var prof=PROFESSORES_LIST[idx]||{}; var cfg=profConfigBuffer[idx]||{disciplinas_internas:[],carga_alvo:20,carga_maxima:20,disponibilidade:[]};
+    profModalAtual.idx=idx; document.getElementById('profModalNome').textContent=prof.nome||'Professor';
+    document.getElementById('profModalCargaAlvo').value=intSeguro(cfg.carga_alvo,intSeguro(cfg.carga_maxima,20)); document.getElementById('profModalCarga').value=intSeguro(cfg.carga_maxima,20);
+    var ocultas=0; ocultas+=renderColProf('interna','col-internas',cfg.disciplinas_internas,idx); ocultas+=renderColProf('externa','col-externas',cfg.disciplinas_internas,idx); ocultas+=renderColProf('cedida','col-cedidas',cfg.disciplinas_internas,idx);
+    var info=document.getElementById('profModalReservadasInfo'); if(info) info.innerHTML='<i class="fas fa-lock me-1"></i> Disciplinas fixadas para este professor aparecem bloqueadas e já contam na cobertura. '+ocultas+' disciplina(s) reservada(s) a outros docentes foram ocultadas.';
+    document.querySelectorAll('#profModalDisponibilidade .prof-disp-cell').forEach(function(c){c.classList.remove('slot-restrito');c.classList.add('slot-livre');c.setAttribute('data-state','disponivel');c.textContent='—';});
+    (cfg.disponibilidade||[]).forEach(function(sl){var c=document.querySelector('#profModalDisponibilidade .prof-disp-cell[data-dia="'+sl[0]+'"][data-hora="'+sl[1]+'"]');if(c){c.classList.remove('slot-livre');c.classList.add('slot-restrito');c.setAttribute('data-state','indisponivel');c.textContent='🚫';}});
+    atualizarCoberturaModal(idx); new bootstrap.Modal(document.getElementById('profModal')).show();
 }
 
 // Botão Configurar (abre modal)
@@ -772,12 +999,13 @@ document.querySelectorAll('.prof-restaurar').forEach(function(b){
         .then(function(r){ return r.json(); })
         .then(function(d){
             if (d.status === 'ok') {
-                profConfigBuffer[idx] = {disciplinas_internas:[], carga_maxima:20, disponibilidade:[]};
+                profConfigBuffer[idx] = {disciplinas_internas:[], carga_alvo:20, carga_maxima:20, disponibilidade:[]};
                 var nd = document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
                 var nc = document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
                 if (nd) nd.textContent = '0';
                 if (nc) nc.textContent = '20';
-                showAutoSave();
+                var na=document.querySelector('.prof-nalvo[data-prof-idx="'+idx+'"]'); if(na) na.textContent='20';
+                sincronizarReservasNoBufferProfessores(); showAutoSave();
             } else {
                 alert('Erro: ' + (d.mensagem || 'desconhecido'));
             }
@@ -808,11 +1036,14 @@ document.querySelectorAll('.prof-remover').forEach(function(b){
 
 // Selecionar/desmarcar coluna
 document.querySelectorAll('.col-sel-all').forEach(function(b){
-    b.addEventListener('click',function(){var t=this.getAttribute('data-tipo'); document.querySelectorAll('.prof-modal-disc[data-tipo="'+t+'"]').forEach(function(c){c.checked=true;});});
+    b.addEventListener('click',function(){var t=this.getAttribute('data-tipo'); document.querySelectorAll('.prof-modal-disc[data-tipo="'+t+'"]:not(:disabled)').forEach(function(c){c.checked=true;}); atualizarCoberturaModal(profModalAtual.idx);});
 });
 document.querySelectorAll('.col-sel-none').forEach(function(b){
-    b.addEventListener('click',function(){var t=this.getAttribute('data-tipo'); document.querySelectorAll('.prof-modal-disc[data-tipo="'+t+'"]').forEach(function(c){c.checked=false;});});
+    b.addEventListener('click',function(){var t=this.getAttribute('data-tipo'); document.querySelectorAll('.prof-modal-disc[data-tipo="'+t+'"]:not(:disabled)').forEach(function(c){c.checked=false;}); atualizarCoberturaModal(profModalAtual.idx);});
 });
+
+document.getElementById('profModalCargaAlvo').addEventListener('input',function(){atualizarCoberturaModal(profModalAtual.idx);});
+document.getElementById('profModalCarga').addEventListener('input',function(){atualizarCoberturaModal(profModalAtual.idx);});
 
 // Disponibilidade
 document.querySelectorAll('#profModalDisponibilidade .prof-disp-cell').forEach(function(c){
@@ -830,11 +1061,10 @@ document.getElementById('profModalSalvar').addEventListener('click',function(){
     var disp=[]; document.querySelectorAll('#profModalDisponibilidade .prof-disp-cell').forEach(function(c){
         if(c.getAttribute('data-state')==='indisponivel') disp.push([c.getAttribute('data-dia'),c.getAttribute('data-hora')]);
     });
-    var carga=parseInt(document.getElementById('profModalCarga').value,10)||20;
-    profConfigBuffer[idx]={disciplinas_internas:discs,carga_maxima:carga,disponibilidade:disp};
-    var nd=document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
-    var nc=document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
-    if(nd) nd.textContent=discs.length; if(nc) nc.textContent=carga;
+    var carga=intSeguro(document.getElementById('profModalCarga').value,20), alvo=intSeguro(document.getElementById('profModalCargaAlvo').value,carga);
+    if(alvo>carga){alert('⚠️ A carga que precisa ser cumprida não pode ultrapassar o limite máximo.');return;}
+    profConfigBuffer[idx]={disciplinas_internas:discs,carga_alvo:alvo,carga_maxima:carga,disponibilidade:disp};
+    sincronizarReservasNoBufferProfessores(); atualizarCardProfessor(idx);
     bootstrap.Modal.getInstance(document.getElementById('profModal')).hide();
 });
 
@@ -852,7 +1082,7 @@ document.getElementById('restaurarProfBtn').addEventListener('click',function(){
     .then(function(r){ return r.json(); })
     .then(function(d){
         if (d.status === 'ok') {
-            profConfigBuffer[idx] = {disciplinas_internas:[], carga_maxima:20, disponibilidade:[]};
+            profConfigBuffer[idx] = {disciplinas_internas:[], carga_alvo:20, carga_maxima:20, disponibilidade:[]};
             var nd = document.querySelector('.prof-ndisc[data-prof-idx="'+idx+'"]');
             var nc = document.querySelector('.prof-ncarga[data-prof-idx="'+idx+'"]');
             if (nd) nd.textContent = '0';
@@ -870,11 +1100,13 @@ document.getElementById('restaurarProfBtn').addEventListener('click',function(){
 // Salvar TODOS professores
 var btnSP=document.getElementById('salvarTodosProfBtn');
 if(btnSP){ btnSP.addEventListener('click',function(){
-    var cfgs=profConfigBuffer.map(function(c,i){return{idx:i,disciplinas_internas:c.disciplinas_internas||[],carga_maxima:parseInt(c.carga_maxima,10)||20,disponibilidade:c.disponibilidade||[]};});
+    var cfgs=coletarConfigsProfessores();
     btnSP.disabled=true; btnSP.innerHTML='<i class="fas fa-spinner fa-spin me-2"></i>Salvando...';
     fetch('/salvar_todas_professores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({configs:cfgs})})
-    .then(function(r){return r.json();}).then(function(){
+    .then(function(r){return r.json();}).then(function(resp){
         btnSP.disabled=false; btnSP.innerHTML='<i class="fas fa-save me-2"></i>Salvar';
+        if(resp.status!=='ok'){alert('⚠️ '+(resp.mensagem||'Não foi possível salvar os professores.'));return;}
+        sincronizarReservasNoBufferProfessores();
         var fb=document.getElementById('salvarProfFeedback'); fb.style.display='';
         showAutoSave(); setTimeout(function(){fb.style.display='none';},2500);
     }).catch(function(){
@@ -882,6 +1114,23 @@ if(btnSP){ btnSP.addEventListener('click',function(){
         alert('❌ Erro');
     });
 });}
+
+var salvarVoltar=document.getElementById('salvarVoltarGeracaoBtn');
+if(salvarVoltar){salvarVoltar.addEventListener('click',function(){
+    var btn=this; sincronizarReservasNoBufferProfessores(); btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Salvando...';
+    fetch('/salvar_contexto_recomendacao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config_disciplinas:coletarConfigsDisciplinas(),config_professores:coletarConfigsProfessores(),config_avancadas:coletarConfigAvancadas()})})
+    .then(function(r){return r.json().then(function(d){return{ok:r.ok,data:d};});}).then(function(resp){if(!resp.ok||resp.data.status!=='ok')throw new Error(resp.data.mensagem||'Não foi possível salvar.');location.href='/generate?alteracoes=1';})
+    .catch(function(e){btn.disabled=false;btn.innerHTML='<i class="fas fa-floppy-disk me-1"></i>Salvar alterações e voltar para gerar';alert('⚠️ '+e.message);});
+});}
+
+function aplicarAtalhoDiagnostico(){
+    var params=new URLSearchParams(window.location.search), tab=params.get('tab');
+    if(tab){var l=document.querySelector('.nav-link[data-tab="'+tab+'"]');if(l)l.click();}
+    var disc=params.get('disc'); if(disc!==null){var card=document.getElementById('card-disc-'+disc);if(card){card.classList.add('diagnostic-focus');setTimeout(function(){card.scrollIntoView({behavior:'smooth',block:'center'});},120);}}
+    var prof=params.get('prof'); if(prof){var pi=professorIdxPorNome(prof);if(pi>=0)setTimeout(function(){abrirProfModal(pi);},150);}
+    var focus=params.get('focus'); if(focus){var el=document.getElementById(focus);if(el){el.classList.add('diagnostic-focus');setTimeout(function(){el.focus();el.scrollIntoView({behavior:'smooth',block:'center'});},140);}}
+}
+aplicarAtalhoDiagnostico();
 
 // ── Conflitos ─────────────────────────────────────────────────────────────
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -950,10 +1199,14 @@ if(btnAv){ btnAv.addEventListener('click',function(){
     var d={estado_sabado:document.getElementById('estadoSabado').value, nivel_restricao:parseInt(document.getElementById('nivelRestricao').value,10)};
     btnAv.disabled=true; btnAv.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Salvando...';
     fetch('/salvar_config_avancadas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
-    .then(function(){
+    .then(function(r){return r.json();}).then(function(resp){
         btnAv.disabled=false; btnAv.innerHTML='<i class="fas fa-save me-1"></i>Salvar Parâmetros';
+        if(resp.status!=='ok'){ alert('⚠️ '+(resp.mensagem||'Não foi possível salvar os parâmetros.')); return; }
         var fb=document.getElementById('avancadasFeedback'); fb.style.display='';
         showAutoSave(); setTimeout(function(){fb.style.display='none';},2000);
+    }).catch(function(){
+        btnAv.disabled=false; btnAv.innerHTML='<i class="fas fa-save me-1"></i>Salvar Parâmetros';
+        alert('❌ Erro ao salvar os parâmetros.');
     });
 });}
 

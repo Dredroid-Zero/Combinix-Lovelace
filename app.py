@@ -1,11 +1,113 @@
 # app.py — Combinix Lovelace · CSP Solver: blocos 2/3 + cascata níveis + sábado 3 estados
-import os, json, random, copy, io, logging, uuid
+import os, sys, json, copy, io, logging, uuid, secrets, hmac
+
+# A edição local inclui dependências Python portáteis em ``vendor/``.
+# Assim, o sistema abre sem executar pip install e sem depender de internet.
+_APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+_VENDOR_DIR = os.path.join(_APP_ROOT, 'vendor')
+if os.path.isdir(_VENDOR_DIR) and _VENDOR_DIR not in sys.path:
+    sys.path.insert(0, _VENDOR_DIR)
+
 from collections import defaultdict
 from flask import Flask, render_template, request, session, jsonify, send_file
-from persistence import save_state, load_state, reset_state
+from werkzeug.exceptions import RequestEntityTooLarge
+from persistence import save_state, load_state, reset_state, normalize_workspace_id
+from services.solver import (
+    solve_schedule, disc_uid as solver_disc_uid, grupo_key as solver_grupo_key,
+    cfg_padrao as solver_cfg_padrao, cfg_padrao_prof as solver_cfg_padrao_prof,
+    normalizar_avancadas as solver_normalizar_avancadas,
+    get_dias_para_nivel as solver_get_dias_para_nivel,
+    analisar_cobertura_professores as solver_analisar_cobertura_professores,
+)
+
+APP_VERSION = '2.1.2-local'
 
 app = Flask(__name__)
-app.secret_key = 'chave_super_secreta_combinix_lovelace'
+
+def _load_or_create_secret_key():
+    # Variável de ambiente em publicação; segredo persistente e privado no modo local.
+    env_secret = os.environ.get('COMBINIX_SECRET_KEY', '').strip()
+    if env_secret:
+        return env_secret
+    db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database')
+    os.makedirs(db_dir, exist_ok=True)
+    path = os.path.join(db_dir, '.secret_key')
+    try:
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as handle:
+                value = handle.read().strip()
+            if value:
+                return value
+        value = secrets.token_urlsafe(48)
+        with open(path, 'w', encoding='utf-8') as handle:
+            handle.write(value)
+        return value
+    except OSError:
+        logging.warning('[Combinix] Não foi possível persistir .secret_key; usando segredo temporário.')
+        return secrets.token_urlsafe(48)
+
+app.secret_key = _load_or_create_secret_key()
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # backups JSON locais: máximo 2 MiB
+
+def _workspace_id():
+    # Hoje há somente o workspace local. Após login, usar aqui o ID do coordenador autenticado.
+    workspace = normalize_workspace_id(session.get('workspace_id', 'local'))
+    session['workspace_id'] = workspace
+    return workspace
+
+def _csrf_token():
+    token = session.get('_csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['_csrf_token'] = token
+    return token
+
+def _hydrate_persisted_state():
+    """Carrega o estado grande do workspace para uso durante esta requisição.
+
+    O Flask usa cookie assinado por padrão. Disciplinas, professores e suas
+    configurações podem ultrapassar com facilidade o limite prático do cookie.
+    Por isso, esses dados vivem no JSON local e entram na sessão apenas durante
+    o processamento da requisição. O ``after_request`` remove os campos grandes
+    antes de enviar o cookie ao navegador.
+    """
+    estado = load_state(_workspace_id())
+    for key in _SESSION_KEYS:
+        session[key] = copy.deepcopy(estado.get(key, {} if key in DICT_KEYS else []))
+    if estado.get('tema') in {'claro', 'escuro'}:
+        session['tema'] = estado['tema']
+    if estado.get('resultado_token'):
+        session['resultado_token'] = estado['resultado_token']
+    elif 'resultado_token' in session:
+        session.pop('resultado_token', None)
+
+
+@app.before_request
+def _seguranca_basica():
+    _workspace_id()
+    token = _csrf_token()
+    _hydrate_persisted_state()
+    if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
+        supplied = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
+        if not supplied or not hmac.compare_digest(str(supplied), str(token)):
+            return jsonify({'status':'erro', 'mensagem':'Sessão expirada ou token de segurança inválido. Recarregue a página.'}), 403
+
+
+@app.after_request
+def _minimizar_cookie_da_sessao(response):
+    """Mantém no cookie apenas identificadores pequenos e o token CSRF."""
+    for key in _SESSION_KEYS:
+        session.pop(key, None)
+    return response
+
+
+@app.context_processor
+def _inject_security_context():
+    return {'csrf_token': _csrf_token(), 'app_version': APP_VERSION}
+
+@app.errorhandler(RequestEntityTooLarge)
+def _arquivo_grande(_exc):
+    return jsonify({'status':'erro','mensagem':'Arquivo muito grande. O backup JSON deve ter no máximo 2 MiB.'}), 413
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ARMAZENAMENTO DE RESULTADOS — fora da session (evita cookie >4KB)
@@ -70,25 +172,30 @@ def _novo_token():
     return uuid.uuid4().hex[:16]  # 16 chars (8 bytes) é suficiente
 
 def _store_resultados(dados):
-    """Cria novo token, armazena resultados e retorna o token."""
-    # Limpar resultados anteriores do mesmo usuário
+    """Armazena resultados vinculados ao workspace atual."""
     token_antigo = session.get('resultado_token')
     if token_antigo and token_antigo in RESULTADOS_STORE:
         del RESULTADOS_STORE[token_antigo]
     token = _novo_token()
-    RESULTADOS_STORE[token] = dados
+    RESULTADOS_STORE[token] = {'workspace_id': _workspace_id(), 'dados': dados}
     _save_resultados_to_disk()
     return token
 
 def _get_resultados():
-    """Retorna os resultados do usuário atual, ou {} se não existir/inválido."""
+    """Retorna somente os resultados do workspace atual."""
     token = session.get('resultado_token')
     if not token or token not in RESULTADOS_STORE:
         return {}
-    return RESULTADOS_STORE[token]
+    registro = RESULTADOS_STORE[token]
+    # Migração transparente de versões antigas, válidas apenas para o workspace local.
+    if isinstance(registro, dict) and 'dados' not in registro:
+        return registro if _workspace_id() == 'local' else {}
+    if not isinstance(registro, dict) or registro.get('workspace_id') != _workspace_id():
+        return {}
+    dados = registro.get('dados', {})
+    return dados if isinstance(dados, dict) else {}
 
 def _limpar_resultados_usuario():
-    """Remove os resultados do usuário atual do store (mantém o token na sessão em branco)."""
     token = session.get('resultado_token')
     if token and token in RESULTADOS_STORE:
         del RESULTADOS_STORE[token]
@@ -105,6 +212,248 @@ PROFESSORES_FOLDER = os.path.join(BASE_DIR, 'professores')
 
 os.makedirs(DISCIPLINAS_FOLDER, exist_ok=True)
 os.makedirs(PROFESSORES_FOLDER, exist_ok=True)
+
+def _catalog_names(folder):
+    try:
+        return sorted(os.path.splitext(name)[0] for name in os.listdir(folder) if name.endswith('.json'))
+    except OSError:
+        return []
+
+def _safe_catalog_file(folder, catalog_name):
+    """Aceita somente nomes presentes no catálogo; impede ../ e leitura arbitrária."""
+    if not isinstance(catalog_name, str) or catalog_name not in _catalog_names(folder):
+        return None
+    base = os.path.realpath(folder)
+    candidate = os.path.realpath(os.path.join(folder, catalog_name + '.json'))
+    try:
+        if os.path.commonpath([base, candidate]) != base:
+            return None
+    except ValueError:
+        return None
+    return candidate
+
+def _load_catalog_list(path):
+    if not path:
+        return []
+    with open(path, 'r', encoding='utf-8') as handle:
+        data = json.load(handle)
+    if not isinstance(data, list):
+        raise ValueError('O arquivo de catálogo deve conter uma lista JSON.')
+    return data
+
+def _int_field(value, name, minimum, maximum):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'{name} deve ser um número inteiro.')
+    if number < minimum or number > maximum:
+        raise ValueError(f'{name} deve ficar entre {minimum} e {maximum}.')
+    return number
+
+def _sanitize_disciplina(raw, default_curso='Geral'):
+    if not isinstance(raw, dict):
+        raise ValueError('Disciplina inválida.')
+    nome = str(raw.get('nome', '')).strip()
+    if not nome:
+        raise ValueError('Informe o nome da disciplina.')
+    return {
+        'nome': nome[:180],
+        'codigo': str(raw.get('codigo', 'MAN') or 'MAN').strip()[:40],
+        'curso': str(raw.get('curso', default_curso) or default_curso).strip()[:100],
+        'semestre': _int_field(raw.get('semestre', 1), 'Semestre', 1, 30),
+        'carga_horaria': _int_field(raw.get('carga_horaria', raw.get('carga', 60)), 'Carga horária', 1, 1000),
+    }
+
+def _sanitize_professor(raw):
+    nome = str((raw or {}).get('nome', '') if isinstance(raw, dict) else raw).strip()
+    if not nome:
+        raise ValueError('Informe o nome do professor.')
+    return {'nome': nome[:180]}
+
+def _safe_index(value, total, field='Índice'):
+    try:
+        idx = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'{field} inválido.')
+    if not 0 <= idx < total:
+        raise ValueError(f'{field} inválido.')
+    return idx
+
+def _sanitize_slots_input(raw):
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError('A lista de horários deve ser válida.')
+    vistos, slots = set(), []
+    for item in raw[:300]:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            raise ValueError('Formato de horário inválido.')
+        dia, hora = str(item[0]), str(item[1])
+        if dia not in DIAS or hora not in HORARIOS:
+            raise ValueError(f'Horário inválido: {dia} {hora}.')
+        if (dia, hora) not in vistos:
+            vistos.add((dia, hora)); slots.append([dia, hora])
+    return slots
+
+def _sanitize_disc_indices(raw, total):
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError('A lista de disciplinas do professor deve ser válida.')
+    saida=[]
+    for item in raw:
+        idx=_safe_index(item,total,'Índice de disciplina')
+        if idx not in saida: saida.append(idx)
+    return saida
+
+def _sanitize_prof_names(raw, allowed_names=None, strict=True):
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError('A lista de professores fixos deve ser válida.')
+    has_allowlist = allowed_names is not None
+    allowed = set(allowed_names or [])
+    saida=[]
+    for item in raw:
+        nome=str(item).strip()
+        if not nome:
+            continue
+        if has_allowlist and nome not in allowed:
+            if strict:
+                raise ValueError(f'Professor fixo inválido: {nome}.')
+            continue
+        if nome not in saida:
+            saida.append(nome)
+    return saida
+
+def _sincronizar_professores_fixos():
+    """Mantém reservas por disciplina coerentes com a aba Professores.
+
+    Uma disciplina com professor(es) fixo(s) pertence somente a eles. As
+    configurações dos demais docentes não podem reintroduzi-la silenciosamente.
+    """
+    disciplinas=session.get('disciplinas_selecionadas', [])
+    professores=session.get('professores_selecionados', [])
+    cfg_disc=session.get('config_disciplinas', [])
+    cfg_prof=session.get('config_professores', [])
+    nomes=[str(p.get('nome','')).strip() for p in professores if str(p.get('nome','')).strip()]
+    nomes_set=set(nomes)
+    while len(cfg_disc)<len(disciplinas): cfg_disc.append(_cfg_padrao(disciplinas[len(cfg_disc)]))
+    while len(cfg_prof)<len(professores): cfg_prof.append(_cfg_padrao_prof())
+    reservas={}
+    for di,cfg in enumerate(cfg_disc):
+        if not isinstance(cfg,dict):
+            cfg=_cfg_padrao(disciplinas[di] if di<len(disciplinas) else {})
+            cfg_disc[di]=cfg
+        fixos=_sanitize_prof_names(cfg.get('professores_fixos', []), nomes_set, strict=False)
+        # Disciplinas externas pertencem a outros cursos: não reservam docentes
+        # selecionados neste workspace e aparecem como “Professor externo”.
+        if cfg.get('tipo', 'interna') == 'externa':
+            fixos=[]
+            cfg['permitir_multiplos_professores']=False
+        cfg['professores_fixos']=fixos
+        if len(fixos)>1:
+            cfg['permitir_multiplos_professores']=True
+        reservas[di]=set(fixos)
+    for pi,prof in enumerate(professores):
+        nome=str(prof.get('nome','')).strip()
+        cfg=cfg_prof[pi] if pi<len(cfg_prof) and isinstance(cfg_prof[pi],dict) else _cfg_padrao_prof()
+        cfg.setdefault('carga_alvo', cfg.get('carga_maxima',20))
+        atuais=_sanitize_disc_indices(cfg.get('disciplinas_internas', []), len(disciplinas))
+        filtradas=[]
+        for di in atuais:
+            disc_cfg=cfg_disc[di] if 0 <= di < len(cfg_disc) and isinstance(cfg_disc[di],dict) else {}
+            if disc_cfg.get('tipo', 'interna') == 'externa':
+                continue
+            fixos=reservas.get(di,set())
+            if not fixos or nome in fixos:
+                filtradas.append(di)
+        for di,fixos in reservas.items():
+            disc_cfg=cfg_disc[di] if 0 <= di < len(cfg_disc) and isinstance(cfg_disc[di],dict) else {}
+            if disc_cfg.get('tipo', 'interna') != 'externa' and nome in fixos and di not in filtradas:
+                filtradas.append(di)
+        cfg['disciplinas_internas']=sorted(filtradas)
+        cfg_prof[pi]=cfg
+    session['config_disciplinas']=cfg_disc
+    session['config_professores']=cfg_prof
+    session.modified=True
+
+def _upd_cfg_prof(idx, data):
+    cfgs=session.get('config_professores', [])
+    idx=_safe_index(idx,len(cfgs),'Índice de professor')
+    total_disc=len(session.get('disciplinas_selecionadas', []))
+    maxima=_int_field(data.get('carga_maxima', 20), 'Carga máxima', 0, 100)
+    alvo=_int_field(data.get('carga_alvo', maxima), 'Carga alvo', 0, 100)
+    if alvo>maxima:
+        raise ValueError('A carga alvo não pode ser maior do que a carga máxima.')
+    cfgs[idx].update({
+        'disciplinas_internas': _sanitize_disc_indices(data.get('disciplinas_internas', []), total_disc),
+        'carga_alvo': alvo,
+        'carga_maxima': maxima,
+        'disponibilidade': _sanitize_slots_input(data.get('disponibilidade', [])),
+    })
+    session['config_professores']=cfgs; session.modified=True
+    _sincronizar_professores_fixos()
+
+
+def _sanitize_imported_disc_config(raw, disciplina, allowed_professor_names=None):
+    cfg = _cfg_padrao(disciplina)
+    raw = raw if isinstance(raw, dict) else {}
+    cfg.update({
+        'tipo': raw.get('tipo', 'interna') if raw.get('tipo', 'interna') in {'interna','externa','cedida'} else 'interna',
+        'aulas_semanais': _int_field(raw.get('aulas_semanais', cfg['aulas_semanais']), 'Aulas por semana', 1, 40),
+        'semestre_oferta': _int_field(raw.get('semestre_oferta', cfg['semestre_oferta']), 'Semestre de oferta', 1, 30),
+        'fixacoes': _sanitize_slots_input(raw.get('fixacoes', [])),
+        'restricoes': _sanitize_slots_input(raw.get('restricoes', [])),
+        'permitir_multiplos_professores': bool(raw.get('permitir_multiplos_professores', False)),
+        'professores_fixos': _sanitize_prof_names(raw.get('professores_fixos', []), allowed_professor_names, strict=False),
+    })
+    if cfg.get('tipo') == 'externa':
+        cfg['professores_fixos'] = []
+        cfg['permitir_multiplos_professores'] = False
+    elif len(cfg.get('professores_fixos', [])) > 1:
+        cfg['permitir_multiplos_professores'] = True
+    # Mantém um estado único por célula. Em backups legados contraditórios, a fixação prevalece.
+    fixas = {tuple(x) for x in cfg['fixacoes']}
+    cfg['restricoes'] = [x for x in cfg['restricoes'] if tuple(x) not in fixas]
+    if len(cfg['fixacoes']) > cfg['aulas_semanais']:
+        raise ValueError(f"Backup inválido: a disciplina {disciplina.get('nome','?')} possui mais fixações do que aulas semanais.")
+    return cfg
+
+
+def _sanitize_imported_prof_config(raw, total_disc):
+    raw = raw if isinstance(raw, dict) else {}
+    maxima = _int_field(raw.get('carga_maxima', 20), 'Carga máxima', 0, 100)
+    alvo = _int_field(raw.get('carga_alvo', maxima), 'Carga alvo', 0, 100)
+    if alvo > maxima:
+        raise ValueError('Backup inválido: carga alvo maior do que a carga máxima de um professor.')
+    return {
+        'disciplinas_internas': _sanitize_disc_indices(raw.get('disciplinas_internas', []), total_disc),
+        'carga_alvo': alvo,
+        'carga_maxima': maxima,
+        'disponibilidade': _sanitize_slots_input(raw.get('disponibilidade', [])),
+    }
+
+
+def _sanitize_imported_groups(raw_groups, disciplinas):
+    if raw_groups is None:
+        return []
+    if not isinstance(raw_groups, list):
+        raise ValueError('Backup inválido: grupos de conflito devem formar uma lista.')
+    valid_names = {str(d.get('nome','')).strip() for d in disciplinas}
+    saida, nomes_vistos = [], set()
+    for raw in raw_groups[:300]:
+        if not isinstance(raw, dict):
+            raise ValueError('Backup inválido: grupo de conflito malformado.')
+        nome = str(raw.get('nome','')).strip()[:120]
+        disciplinas_grupo = raw.get('disciplinas', [])
+        if not isinstance(disciplinas_grupo, list):
+            raise ValueError('Backup inválido: disciplinas de um grupo de conflito devem formar uma lista.')
+        unicas = list(dict.fromkeys(str(x).strip() for x in disciplinas_grupo if str(x).strip() in valid_names))
+        if nome and len(unicas) >= 2 and nome.casefold() not in nomes_vistos:
+            nomes_vistos.add(nome.casefold())
+            saida.append({'nome': nome, 'disciplinas': unicas})
+    return saida
 
 # ─── Verificação da camada de dados na inicialização ────────────────────────
 def _verificar_dados():
@@ -138,26 +487,18 @@ HORARIO_ULTIMO = '17:00-18:00'
 DICT_KEYS = {'config_avancadas'}
 
 # ─── Identidade única ──────────────────────────────────────────────────────
-def disc_uid(d): return '{}|{}|{}'.format(d.get('curso','Geral'),d.get('nome',''),d.get('semestre',''))
-def grupo_key(c,s): return '{}|{}'.format(c or 'Geral',s)
+def disc_uid(d): return solver_disc_uid(d)
+def grupo_key(c,s): return solver_grupo_key(c,s)
 
 # ─── Config padrão ─────────────────────────────────────────────────────────
 def _cfg_padrao(d):
-    return {'tipo':'interna','aulas_semanais':max(1,round(d.get('carga_horaria',60)/15)),
-            'semestre_oferta':d.get('semestre',1),'fixacoes':[],'restricoes':[]}
+    return solver_cfg_padrao(d)
 def _cfg_padrao_prof():
-    return {'disciplinas_internas':[],'carga_maxima':20,'disponibilidade':[]}
+    return solver_cfg_padrao_prof()
 def _normalizar_avancadas(cfg):
-    """Normaliza config_avancadas: bool→estado_sabado, quebrar_blocos legado→nivel_restricao."""
-    if 'usar_sabado' in cfg and 'estado_sabado' not in cfg:
-        cfg['estado_sabado'] = 'normal' if cfg.pop('usar_sabado') else 'desativado'
-    cfg.setdefault('estado_sabado', 'desativado')
-    cfg.pop('quebrar_blocos', None)
-    nv = cfg.get('nivel_restricao', 3)
-    try: nv = int(nv)
-    except (TypeError, ValueError): nv = 3
-    if nv not in (1, 2, 3): nv = 3
-    cfg['nivel_restricao'] = nv
+    normalizada = solver_normalizar_avancadas(cfg)
+    cfg.clear(); cfg.update(normalizada)
+    return cfg
 
 # ─── Persistência ──────────────────────────────────────────────────────────
 # A session agora contém APENAS:
@@ -174,10 +515,10 @@ def auto_save():
     data = {k: session.get(k, {} if k in DICT_KEYS else []) for k in _SESSION_KEYS}
     data['tema'] = session.get('tema', 'claro')
     data['resultado_token'] = session.get('resultado_token', '')
-    save_state(data)
+    save_state(data, _workspace_id())
 
 def carregar_estado_inicial():
-    estado = load_state()
+    estado = load_state(_workspace_id())
     if estado:
         for k in _SESSION_KEYS:
             session[k] = estado.get(k, {} if k in DICT_KEYS else [])
@@ -197,6 +538,23 @@ def _preservar_configs_prof(novos, antigos, cfgs_antigas):
     mapa = {antigos[i].get('nome',''): cfgs_antigas[i] for i in range(min(len(antigos),len(cfgs_antigas)))}
     return [mapa.get(p.get('nome',''), _cfg_padrao_prof()) for p in novos]
 
+def _remap_prof_disc_indices(disciplinas_antigas, disciplinas_novas, cfgs_prof):
+    """Preserva vínculos docentes quando disciplinas são removidas ou reordenadas."""
+    old_uid_by_idx = {i: disc_uid(d) for i, d in enumerate(disciplinas_antigas)}
+    new_idx_by_uid = {disc_uid(d): i for i, d in enumerate(disciplinas_novas)}
+    for cfg in cfgs_prof:
+        if not isinstance(cfg, dict):
+            continue
+        novos=[]
+        for raw_idx in cfg.get('disciplinas_internas', []) or []:
+            try: old_idx=int(raw_idx)
+            except (TypeError, ValueError): continue
+            uid=old_uid_by_idx.get(old_idx)
+            if uid in new_idx_by_uid and new_idx_by_uid[uid] not in novos:
+                novos.append(new_idx_by_uid[uid])
+        cfg['disciplinas_internas']=novos
+    return cfgs_prof
+
 # ─── Páginas ───────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
@@ -215,13 +573,24 @@ def config():
     grupos_choque = session.get('grupos_choque',[])
     config_avancadas = session.get('config_avancadas',{'estado_sabado':'desativado','nivel_restricao':3})
     _normalizar_avancadas(config_avancadas)
-    # Persistir migração (remove quebrar_blocos legado, adiciona nivel_restricao)
+    # Migra configurações antigas e sincroniza reservas docentes.
+    session['config_disciplinas'] = config_disc
+    session['config_professores'] = config_prof
+    _sincronizar_professores_fixos()
+    config_disc = session.get('config_disciplinas', [])
+    config_prof = session.get('config_professores', [])
+    cobertura_professores = solver_analisar_cobertura_professores(disciplinas, professores, config_disc, config_prof)
     session['config_avancadas'] = config_avancadas
     session.modified = True
+    auto_save()
+    return_to = request.args.get('return', '')
+    if return_to not in {'/generate', '/resultados'}:
+        return_to = ''
     return render_template('config.html', disciplinas=disciplinas, professores=professores,
                            config_disciplinas=config_disc, config_professores=config_prof,
+                           cobertura_professores=cobertura_professores,
                            grupos_choque=grupos_choque, config_avancadas=config_avancadas,
-                           dias=DIAS, horarios=HORARIOS)
+                           return_to=return_to, dias=DIAS, horarios=HORARIOS)
 
 @app.route('/generate')
 def generate():
@@ -235,7 +604,7 @@ def generate():
         grade_por_semestre=res.get('grade_por_semestre',{}),
         grade_por_professor=res.get('grade_por_professor',{}),
         grades_com_prof=res.get('grades_com_prof',{}),
-        relatorio=res.get('relatorio',{}), dias=DIAS, horarios=HORARIOS)
+        relatorio=res.get('relatorio',{}), alteracoes_salvas=request.args.get('alteracoes') == '1', dias=DIAS, horarios=HORARIOS)
 
 @app.route('/resultados')
 def resultados():
@@ -247,7 +616,7 @@ def resultados():
         grade_por_semestre=res.get('grade_por_semestre',{}),
         grade_por_professor=res.get('grade_por_professor',{}),
         grades_com_prof=res.get('grades_com_prof',{}),
-        relatorio=res.get('relatorio',{}), dias=DIAS, horarios=HORARIOS)
+        relatorio=res.get('relatorio',{}), alteracoes_salvas=False, dias=DIAS, horarios=HORARIOS)
 
 # ─── APIs ──────────────────────────────────────────────────────────────────
 @app.route('/api/status')
@@ -262,13 +631,11 @@ def api_status():
         'disciplinas': {
             'total': len(status['disciplinas']['arquivos']),
             'cursos': sorted(f.replace('.json','') for f in status['disciplinas']['arquivos']),
-            'pasta': DISCIPLINAS_FOLDER,
             'ok': status['disciplinas']['ok'],
         },
         'professores': {
             'total': len(status['professores']['arquivos']),
             'institutos': sorted(f.replace('.json','') for f in status['professores']['arquivos']),
-            'pasta': PROFESSORES_FOLDER,
             'ok': status['professores']['ok'],
         },
     })
@@ -276,7 +643,7 @@ def api_status():
 @app.route('/api/cursos/disciplinas')
 def api_cursos_disciplinas():
     try:
-        cursos = sorted(f.replace('.json','') for f in os.listdir(DISCIPLINAS_FOLDER) if f.endswith('.json'))
+        cursos = _catalog_names(DISCIPLINAS_FOLDER)
     except OSError:
         cursos = []
     return jsonify(cursos)
@@ -284,96 +651,180 @@ def api_cursos_disciplinas():
 @app.route('/api/cursos/professores')
 def api_cursos_professores():
     try:
-        cursos = sorted(f.replace('.json','') for f in os.listdir(PROFESSORES_FOLDER) if f.endswith('.json'))
+        cursos = _catalog_names(PROFESSORES_FOLDER)
     except OSError:
         cursos = []
     return jsonify(cursos)
 
 @app.route('/api/disciplinas/<path:curso>')
 def api_disciplinas(curso):
-    """Aceita <path:curso> para lidar com nomes com caracteres especiais/acentos na URL."""
-    f = os.path.join(DISCIPLINAS_FOLDER, '{}.json'.format(curso))
-    if os.path.exists(f):
-        try:
-            data = json.load(open(f,'r',encoding='utf-8'))
-            for d in data: d['curso'] = curso
-            return jsonify(data)
-        except Exception as e:
-            return jsonify({'erro': str(e)}), 500
-    return jsonify([])
+    path = _safe_catalog_file(DISCIPLINAS_FOLDER, curso)
+    if not path:
+        return jsonify({'erro':'Catálogo não encontrado.'}), 404
+    try:
+        data = [_sanitize_disciplina(d, curso) for d in _load_catalog_list(path)]
+        return jsonify(data)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        logging.warning('[Combinix] Catálogo de disciplinas inválido: %s', exc)
+        return jsonify({'erro':'Catálogo de disciplinas inválido.'}), 422
 
 @app.route('/api/professores/<path:curso>')
 def api_professores(curso):
-    """Aceita <path:curso> para lidar com nomes com espaços/acentos."""
-    f = os.path.join(PROFESSORES_FOLDER, '{}.json'.format(curso))
-    if os.path.exists(f):
-        try:
-            return jsonify(json.load(open(f,'r',encoding='utf-8')))
-        except Exception as e:
-            return jsonify({'erro': str(e)}), 500
-    return jsonify([])
+    path = _safe_catalog_file(PROFESSORES_FOLDER, curso)
+    if not path:
+        return jsonify({'erro':'Catálogo não encontrado.'}), 404
+    try:
+        return jsonify([_sanitize_professor(p) for p in _load_catalog_list(path)])
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        logging.warning('[Combinix] Catálogo de professores inválido: %s', exc)
+        return jsonify({'erro':'Catálogo de professores inválido.'}), 422
 
 # ─── Seleção ───────────────────────────────────────────────────────────────
+def _sanitize_selected_disciplines(raw):
+    if not isinstance(raw, list):
+        raise ValueError('A seleção de disciplinas deve ser uma lista.')
+    vistos, unicas = set(), []
+    for item in raw[:500]:
+        disc = _sanitize_disciplina(item)
+        uid = disc_uid(disc)
+        if uid not in vistos:
+            vistos.add(uid)
+            unicas.append(disc)
+    return unicas
+
+
+def _sanitize_selected_professors(raw):
+    if not isinstance(raw, list):
+        raise ValueError('A seleção de professores deve ser uma lista.')
+    vistos, professores = set(), []
+    for item in raw[:500]:
+        prof = _sanitize_professor(item)
+        if prof['nome'] not in vistos:
+            vistos.add(prof['nome'])
+            professores.append(prof)
+    return professores
+
+
+def _apply_selections(disciplinas, professores):
+    antigas_disc = session.get('disciplinas_selecionadas', [])
+    antigas_prof = session.get('professores_selecionados', [])
+    session['config_disciplinas'] = _preservar_configs_disc(
+        disciplinas, antigas_disc, session.get('config_disciplinas', []))
+    cfg_prof = _preservar_configs_prof(
+        professores, antigas_prof, session.get('config_professores', []))
+    session['config_professores'] = _remap_prof_disc_indices(antigas_disc, disciplinas, cfg_prof)
+    session['disciplinas_selecionadas'] = disciplinas
+    session['professores_selecionados'] = professores
+    _sincronizar_professores_fixos()
+    session.modified = True
+    auto_save()
+
+
+@app.route('/salvar_selecoes', methods=['POST'])
+def salvar_selecoes():
+    """Salva disciplinas e professores em uma única escrita atômica.
+
+    Evita a condição de corrida da versão anterior, que disparava duas
+    requisições concorrentes e podia deixar apenas metade da seleção gravada.
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        disciplinas = _sanitize_selected_disciplines(data.get('disciplinas', []))
+        professores = _sanitize_selected_professors(data.get('professores', []))
+        _apply_selections(disciplinas, professores)
+        return jsonify({
+            'status': 'ok',
+            'disciplinas_salvas': len(disciplinas),
+            'professores_salvos': len(professores),
+        })
+    except ValueError as exc:
+        return jsonify({'status':'erro', 'mensagem':str(exc)}), 400
+
+
 @app.route('/selecionar_disciplinas', methods=['POST'])
 def selecionar_disciplinas():
-    disc = (request.get_json() or {}).get('disciplinas',[]) if request.is_json else \
-           json.loads(request.form.get('disciplinas','[]'))
-    vistos,unicas = set(),[]
-    for d in disc:
-        uid=disc_uid(d)
-        if uid not in vistos: vistos.add(uid); unicas.append(d)
-    session['config_disciplinas'] = _preservar_configs_disc(
-        unicas, session.get('disciplinas_selecionadas',[]), session.get('config_disciplinas',[]))
-    session['disciplinas_selecionadas'] = unicas
-    session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    try:
+        raw = (request.get_json(silent=True) or {}).get('disciplinas', []) if request.is_json else json.loads(request.form.get('disciplinas', '[]'))
+        unicas = _sanitize_selected_disciplines(raw)
+        antigas=session.get('disciplinas_selecionadas', [])
+        session['config_disciplinas'] = _preservar_configs_disc(unicas, antigas, session.get('config_disciplinas', []))
+        session['config_professores'] = _remap_prof_disc_indices(antigas, unicas, session.get('config_professores', []))
+        session['disciplinas_selecionadas'] = unicas
+        _sincronizar_professores_fixos()
+        session.modified = True; auto_save()
+        return jsonify({'status':'ok'})
+    except (ValueError, json.JSONDecodeError) as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/selecionar_professores', methods=['POST'])
 def selecionar_professores():
-    profs = (request.get_json() or {}).get('professores',[]) if request.is_json else \
-            json.loads(request.form.get('professores','[]'))
-    session['config_professores'] = _preservar_configs_prof(
-        profs, session.get('professores_selecionados',[]), session.get('config_professores',[]))
-    session['professores_selecionados'] = profs
-    session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    try:
+        raw = (request.get_json(silent=True) or {}).get('professores', []) if request.is_json else json.loads(request.form.get('professores', '[]'))
+        profs = _sanitize_selected_professors(raw)
+        session['config_professores'] = _preservar_configs_prof(profs, session.get('professores_selecionados', []), session.get('config_professores', []))
+        session['professores_selecionados'] = profs
+        _sincronizar_professores_fixos()
+        session.modified = True; auto_save()
+        return jsonify({'status':'ok'})
+    except (ValueError, json.JSONDecodeError) as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/adicionar_disciplina_manual', methods=['POST'])
 def adicionar_disciplina_manual():
-    d = {'nome':request.form.get('nome',''),'codigo':request.form.get('codigo','MAN'),
-         'curso':request.form.get('curso','Manual'),'semestre':int(request.form.get('semestre',1)),
-         'carga_horaria':int(request.form.get('carga',60))}
-    discs = session.get('disciplinas_selecionadas',[])
-    if any(disc_uid(x)==disc_uid(d) for x in discs): return jsonify({'status':'erro','mensagem':'Já existe'})
-    discs.append(d); session['disciplinas_selecionadas']=discs
-    cfgs=session.get('config_disciplinas',[]); cfgs.append(_cfg_padrao(d))
-    session['config_disciplinas']=cfgs; session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    try:
+        d = _sanitize_disciplina({
+            'nome': request.form.get('nome', ''), 'codigo': request.form.get('codigo', 'MAN'),
+            'curso': request.form.get('curso', 'Manual'), 'semestre': request.form.get('semestre', 1),
+            'carga_horaria': request.form.get('carga', 60),
+        }, 'Manual')
+        discs = session.get('disciplinas_selecionadas', [])
+        if any(disc_uid(x) == disc_uid(d) for x in discs):
+            return jsonify({'status':'erro','mensagem':'Esta disciplina já foi adicionada.'}), 409
+        discs.append(d); session['disciplinas_selecionadas'] = discs
+        cfgs = session.get('config_disciplinas', []); cfgs.append(_cfg_padrao(d))
+        session['config_disciplinas'] = cfgs; session.modified = True; auto_save()
+        return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/adicionar_professor_manual', methods=['POST'])
 def adicionar_professor_manual():
-    profs=session.get('professores_selecionados',[]); profs.append({'nome':request.form.get('nome','')})
-    cfgs=session.get('config_professores',[]); cfgs.append(_cfg_padrao_prof())
-    session['professores_selecionados']=profs; session['config_professores']=cfgs
-    session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    try:
+        novo = _sanitize_professor({'nome':request.form.get('nome', '')})
+        profs = session.get('professores_selecionados', [])
+        if any(str(p.get('nome','')).strip() == novo['nome'] for p in profs):
+            return jsonify({'status':'erro','mensagem':'Este professor já foi adicionado.'}), 409
+        profs.append(novo)
+        cfgs = session.get('config_professores', []); cfgs.append(_cfg_padrao_prof())
+        session['professores_selecionados'] = profs; session['config_professores'] = cfgs
+        session.modified = True; auto_save(); return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/remover_disciplina', methods=['POST'])
 def remover_disciplina():
-    idx=int(request.form.get('index',-1))
-    d=session.get('disciplinas_selecionadas',[]); c=session.get('config_disciplinas',[])
-    if 0<=idx<len(d): d.pop(idx);(c.pop(idx) if idx<len(c) else None)
-    session['disciplinas_selecionadas']=d; session['config_disciplinas']=c
-    session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    try:
+        d=session.get('disciplinas_selecionadas',[]); c=session.get('config_disciplinas',[]); antigas=list(d)
+        idx=_safe_index(request.form.get('index',-1),len(d),'Índice de disciplina')
+        d.pop(idx); (c.pop(idx) if idx<len(c) else None)
+        session['disciplinas_selecionadas']=d; session['config_disciplinas']=c
+        session['config_professores']=_remap_prof_disc_indices(antigas,d,session.get('config_professores',[]))
+        _sincronizar_professores_fixos()
+        session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/remover_disciplina_config', methods=['POST'])
 def remover_disciplina_config():
     """Remove disciplina diretamente na tela de configuração."""
     data=request.get_json(force=True,silent=True) or {}; idx=data.get('idx')
     if isinstance(idx,str) and idx.isdigit(): idx=int(idx)
-    d=session.get('disciplinas_selecionadas',[]); c=session.get('config_disciplinas',[])
+    d=session.get('disciplinas_selecionadas',[]); c=session.get('config_disciplinas',[]); antigas=list(d)
     if isinstance(idx,int) and 0<=idx<len(d):
         d.pop(idx); (c.pop(idx) if idx<len(c) else None)
         session['disciplinas_selecionadas']=d; session['config_disciplinas']=c
+        session['config_professores']=_remap_prof_disc_indices(antigas,d,session.get('config_professores',[]))
+        _sincronizar_professores_fixos()
         session.modified=True; auto_save(); return jsonify({'status':'ok'})
     return jsonify({'status':'erro','mensagem':'Índice inválido'})
 
@@ -390,6 +841,7 @@ def remover_professor_config():
         if idx < len(c): c.pop(idx)
         session['professores_selecionados'] = p
         session['config_professores'] = c
+        _sincronizar_professores_fixos()
         session.modified = True
         auto_save()
         return jsonify({'status': 'ok'})
@@ -397,83 +849,137 @@ def remover_professor_config():
 
 @app.route('/remover_professor', methods=['POST'])
 def remover_professor():
-    idx=int(request.form.get('index',-1))
-    p=session.get('professores_selecionados',[]); c=session.get('config_professores',[])
-    if 0<=idx<len(p): p.pop(idx);(c.pop(idx) if idx<len(c) else None)
-    session['professores_selecionados']=p; session['config_professores']=c
-    session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    try:
+        p=session.get('professores_selecionados',[]); c=session.get('config_professores',[])
+        idx=_safe_index(request.form.get('index',-1),len(p),'Índice de professor')
+        p.pop(idx); (c.pop(idx) if idx<len(c) else None)
+        session['professores_selecionados']=p; session['config_professores']=c
+        _sincronizar_professores_fixos()
+        session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 # ─── Configuração ──────────────────────────────────────────────────────────
 def _upd_cfg_disc(idx, data):
-    cfgs=session.get('config_disciplinas',[])
-    if isinstance(idx,int) and 0<=idx<len(cfgs):
-        cfgs[idx].update({'tipo':data.get('tipo','interna'),
-                          'aulas_semanais':int(data.get('aulas_semanais',2)),
-                          'semestre_oferta':int(data.get('semestre_oferta',1))})
-    session['config_disciplinas']=cfgs; session.modified=True
+    cfgs = session.get('config_disciplinas', [])
+    if not isinstance(idx, int) or not (0 <= idx < len(cfgs)):
+        raise ValueError('Índice de disciplina inválido.')
+    atuais = cfgs[idx] if isinstance(cfgs[idx], dict) else {}
+    nomes={str(p.get('nome','')).strip() for p in session.get('professores_selecionados', []) if str(p.get('nome','')).strip()}
+    tipo=data.get('tipo', 'interna') if data.get('tipo', 'interna') in {'interna','externa','cedida'} else 'interna'
+    fixos=_sanitize_prof_names(data.get('professores_fixos', atuais.get('professores_fixos', [])), nomes, strict=True)
+    permitir=bool(data.get('permitir_multiplos_professores', atuais.get('permitir_multiplos_professores', False)))
+    if tipo == 'externa':
+        fixos=[]
+        permitir=False
+    elif len(fixos)>1:
+        permitir=True
+    cfgs[idx].update({
+        'tipo': tipo,
+        'aulas_semanais': _int_field(data.get('aulas_semanais', 2), 'Aulas por semana', 1, 40),
+        'semestre_oferta': _int_field(data.get('semestre_oferta', 1), 'Semestre de oferta', 1, 30),
+        'permitir_multiplos_professores': permitir,
+        'professores_fixos': fixos,
+    })
+    session['config_disciplinas'] = cfgs; session.modified = True
+    _sincronizar_professores_fixos()
 
 @app.route('/salvar_config_disciplina', methods=['POST'])
 def salvar_config_disciplina():
-    data=request.get_json(force=True,silent=True) or {}; _upd_cfg_disc(data.get('idx'),data); auto_save(); return jsonify({'status':'ok'})
+    try:
+        data=request.get_json(force=True,silent=True) or {}; _upd_cfg_disc(data.get('idx'),data); auto_save(); return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/salvar_todas_disciplinas', methods=['POST'])
 def salvar_todas_disciplinas():
-    data=request.get_json(force=True,silent=True) or {}
-    for c in data.get('configs',[]): _upd_cfg_disc(c.get('idx'),c)
-    auto_save(); return jsonify({'status':'ok','total':len(data.get('configs',[]))})
+    try:
+        data=request.get_json(force=True,silent=True) or {}
+        configs=data.get('configs',[])
+        if not isinstance(configs,list): raise ValueError('Configurações de disciplinas inválidas.')
+        for item in configs:
+            if not isinstance(item,dict): raise ValueError('Configuração de disciplina inválida.')
+            _upd_cfg_disc(item.get('idx'),item)
+        auto_save(); return jsonify({'status':'ok','total':len(configs)})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/salvar_fixacao', methods=['POST'])
 def salvar_fixacao():
-    data=request.get_json(force=True,silent=True) or {}
-    idx=data.get('idx'); dia=data.get('dia'); hora=data.get('hora'); tipo=data.get('tipo')
-    if isinstance(idx,str) and idx.isdigit(): idx=int(idx)
-    cfgs=session.get('config_disciplinas',[])
-    if not(isinstance(idx,int) and 0<=idx<len(cfgs)): return jsonify({'status':'erro','mensagem':'Índice inválido'})
-    cfg=cfgs[idx]; slot=[dia,hora]; N=int(cfg.get('aulas_semanais',2))
-    nf=[s for s in cfg.get('fixacoes',[]) if s!=slot]; nr=[s for s in cfg.get('restricoes',[]) if s!=slot]
-    if tipo=='fixar': nf.append(slot)
-    elif tipo=='restringir': nr.append(slot)
-    if len(nf)>N: return jsonify({'status':'erro','codigo':'fixacoes_excedem_carga','mensagem':'Max {} fixações.'.format(N)})
-    av=session.get('config_avancadas',{}); _normalizar_avancadas(av)
-    dias_v=_get_dias_para_nivel(3, av.get('estado_sabado','desativado'))
-    if len(dias_v)*len(HORARIOS)-len(nr)<N: return jsonify({'status':'erro','codigo':'poucos_disponiveis','mensagem':'Slots insuficientes.'})
-    cfg['fixacoes']=nf; cfg['restricoes']=nr; session['config_disciplinas']=cfgs; session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    try:
+        data=request.get_json(force=True,silent=True) or {}
+        cfgs=session.get('config_disciplinas',[])
+        idx=_safe_index(data.get('idx'),len(cfgs),'Índice de disciplina')
+        dia, hora, tipo = str(data.get('dia','')), str(data.get('hora','')), str(data.get('tipo',''))
+        if dia not in DIAS or hora not in HORARIOS:
+            raise ValueError('Dia ou horário inválido.')
+        if tipo not in {'fixar','restringir','limpar'}:
+            raise ValueError('Ação inválida para o horário.')
+        cfg=cfgs[idx]; slot=[dia,hora]
+        N=_int_field(cfg.get('aulas_semanais',2),'Aulas por semana',1,40)
+        nf=[s for s in _sanitize_slots_input(cfg.get('fixacoes',[])) if s!=slot]
+        nr=[s for s in _sanitize_slots_input(cfg.get('restricoes',[])) if s!=slot]
+        if tipo=='fixar': nf.append(slot)
+        elif tipo=='restringir': nr.append(slot)
+        if len(nf)>N:
+            return jsonify({'status':'erro','codigo':'fixacoes_excedem_carga','mensagem':f'Esta disciplina permite no máximo {N} fixação(ões).'}), 400
+        av=session.get('config_avancadas',{}); _normalizar_avancadas(av)
+        if tipo == 'fixar' and dia == 'Sábado' and av.get('estado_sabado','desativado') == 'desativado':
+            return jsonify({'status':'erro','codigo':'sabado_desativado','mensagem':'Ative o sábado nas Configurações Avançadas antes de fixar uma aula nesse dia.'}), 400
+        dias_v=solver_get_dias_para_nivel(3, av.get('estado_sabado','desativado'))
+        if len(dias_v)*len(HORARIOS)-len(nr)<N:
+            return jsonify({'status':'erro','codigo':'poucos_disponiveis','mensagem':'Restrições excessivas: libere mais horários para esta disciplina.'}), 400
+        cfg['fixacoes']=nf; cfg['restricoes']=nr; session['config_disciplinas']=cfgs
+        session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/resetar_disciplina', methods=['POST'])
 def resetar_disciplina():
-    data=request.get_json(force=True,silent=True) or {}; idx=data.get('idx')
-    if isinstance(idx,str) and idx.isdigit(): idx=int(idx)
-    d=session.get('disciplinas_selecionadas',[]); c=session.get('config_disciplinas',[])
-    if not(isinstance(idx,int) and 0<=idx<len(c)): return jsonify({'status':'erro','mensagem':'Índice inválido'})
-    c[idx]=_cfg_padrao(d[idx] if idx<len(d) else {}); session['config_disciplinas']=c; session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    try:
+        data=request.get_json(force=True,silent=True) or {}
+        d=session.get('disciplinas_selecionadas',[]); c=session.get('config_disciplinas',[])
+        idx=_safe_index(data.get('idx'),len(c),'Índice de disciplina')
+        c[idx]=_cfg_padrao(d[idx] if idx<len(d) else {}); session['config_disciplinas']=c; session.modified=True; auto_save()
+        return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/resetar_professor', methods=['POST'])
 def resetar_professor():
-    data=request.get_json(force=True,silent=True) or {}; idx=data.get('idx')
-    if isinstance(idx,str) and idx.isdigit(): idx=int(idx)
-    c=session.get('config_professores',[])
-    if not(isinstance(idx,int) and 0<=idx<len(c)): return jsonify({'status':'erro','mensagem':'Índice inválido'})
-    c[idx]=_cfg_padrao_prof(); session['config_professores']=c; session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    try:
+        data=request.get_json(force=True,silent=True) or {}; c=session.get('config_professores',[])
+        idx=_safe_index(data.get('idx'),len(c),'Índice de professor')
+        c[idx]=_cfg_padrao_prof(); session['config_professores']=c; _sincronizar_professores_fixos(); session.modified=True; auto_save()
+        return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/adicionar_grupo_choque', methods=['POST'])
 def adicionar_grupo_choque():
     data=request.get_json(force=True,silent=True) or {}
-    nome=(data.get('nome','') or '').strip(); discs=data.get('disciplinas',[])
-    if not nome or len(discs)<2: return jsonify({'status':'erro','mensagem':'Nome e 2+ disciplinas obrigatórios'})
+    nome=str(data.get('nome','') or '').strip()[:120]
+    discs=data.get('disciplinas',[])
+    if not isinstance(discs,list):
+        return jsonify({'status':'erro','mensagem':'Lista de disciplinas inválida.'}), 400
+    valid_names={str(d.get('nome','')) for d in session.get('disciplinas_selecionadas',[])}
+    discs=[] if not discs else list(dict.fromkeys(str(d).strip() for d in discs if str(d).strip() in valid_names))
+    if not nome or len(discs)<2:
+        return jsonify({'status':'erro','mensagem':'Informe um nome e selecione ao menos duas disciplinas válidas.'}), 400
     grupos=session.get('grupos_choque',[])
-    if any(g.get('nome','').strip().lower()==nome.lower() for g in grupos):
-        return jsonify({'status':'erro','codigo':'nome_duplicado','mensagem':'Já existe um grupo com esse nome'})
-    grupos.append({'nome':nome,'disciplinas':discs}); session['grupos_choque']=grupos; session.modified=True; auto_save()
-    return jsonify({'status':'ok'})
+    if any(str(g.get('nome','')).strip().lower()==nome.lower() for g in grupos):
+        return jsonify({'status':'erro','codigo':'nome_duplicado','mensagem':'Já existe um grupo com esse nome.'}), 409
+    grupos.append({'nome':nome,'disciplinas':discs}); session['grupos_choque']=grupos
+    session.modified=True; auto_save(); return jsonify({'status':'ok'})
 
 @app.route('/remover_grupo_choque', methods=['POST'])
 def remover_grupo_choque():
-    data=request.get_json(force=True,silent=True) or {}; idx=data.get('idx',-1)
-    grupos=session.get('grupos_choque',[]); (grupos.pop(idx) if 0<=idx<len(grupos) else None)
-    session['grupos_choque']=grupos; session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    try:
+        data=request.get_json(force=True,silent=True) or {}; grupos=session.get('grupos_choque',[])
+        idx=_safe_index(data.get('idx',-1),len(grupos),'Índice de grupo')
+        grupos.pop(idx); session['grupos_choque']=grupos; session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/limpar_todos_conflitos', methods=['POST'])
 def limpar_todos_conflitos():
@@ -481,24 +987,24 @@ def limpar_todos_conflitos():
 
 @app.route('/salvar_config_professor', methods=['POST'])
 def salvar_config_professor():
-    data=request.get_json(force=True,silent=True) or {}; idx=data.get('idx')
-    if isinstance(idx,str) and idx.isdigit(): idx=int(idx)
-    c=session.get('config_professores',[])
-    if isinstance(idx,int) and 0<=idx<len(c):
-        c[idx].update({'disciplinas_internas':data.get('disciplinas_internas',[]),
-                       'carga_maxima':int(data.get('carga_maxima',20)),'disponibilidade':data.get('disponibilidade',[])})
-    session['config_professores']=c; session.modified=True; auto_save(); return jsonify({'status':'ok'})
+    try:
+        data=request.get_json(force=True,silent=True) or {}
+        _upd_cfg_prof(data.get('idx'),data); auto_save(); return jsonify({'status':'ok'})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/salvar_todas_professores', methods=['POST'])
 def salvar_todas_professores():
-    data=request.get_json(force=True,silent=True) or {}; c=session.get('config_professores',[])
-    for x in data.get('configs',[]):
-        idx=x.get('idx')
-        if isinstance(idx,int) and 0<=idx<len(c):
-            c[idx].update({'disciplinas_internas':x.get('disciplinas_internas',[]),
-                           'carga_maxima':int(x.get('carga_maxima',20)),'disponibilidade':x.get('disponibilidade',[])})
-    session['config_professores']=c; session.modified=True; auto_save()
-    return jsonify({'status':'ok','total':len(data.get('configs',[]))})
+    try:
+        data=request.get_json(force=True,silent=True) or {}
+        configs=data.get('configs',[])
+        if not isinstance(configs,list): raise ValueError('Configurações de professores inválidas.')
+        for item in configs:
+            if not isinstance(item,dict): raise ValueError('Configuração de professor inválida.')
+            _upd_cfg_prof(item.get('idx'),item)
+        auto_save(); return jsonify({'status':'ok','total':len(configs)})
+    except ValueError as exc:
+        return jsonify({'status':'erro','mensagem':str(exc)}), 400
 
 @app.route('/salvar_config_avancadas', methods=['POST'])
 def salvar_config_avancadas():
@@ -512,299 +1018,102 @@ def salvar_config_avancadas():
         'nivel_restricao': nv,
     }
     _normalizar_avancadas(cfg)
+    if cfg.get('estado_sabado') == 'desativado':
+        for disc_cfg in session.get('config_disciplinas', []):
+            if any(isinstance(slot, (list, tuple)) and len(slot) == 2 and slot[0] == 'Sábado' for slot in disc_cfg.get('fixacoes', [])):
+                return jsonify({'status':'erro','mensagem':'Não é possível desativar o sábado enquanto houver aulas fixadas nesse dia. Remova as fixações ou mantenha o sábado ativo.'}), 400
     session['config_avancadas'] = cfg
     session.modified = True; auto_save()
     return jsonify({'status': 'ok'})
 
+@app.route('/salvar_contexto_recomendacao', methods=['POST'])
+def salvar_contexto_recomendacao():
+    """Salva todas as alterações visíveis antes de voltar ao diagnóstico.
+
+    Os atalhos do relatório conduzem ao ponto exato da configuração. Este
+    endpoint garante que o retorno à geração considere as alterações feitas em
+    disciplinas, professores e parâmetros avançados em uma única confirmação.
+    """
+    snapshot={k:copy.deepcopy(session.get(k, {} if k in DICT_KEYS else [])) for k in _SESSION_KEYS}
+    try:
+        data=request.get_json(force=True,silent=True) or {}
+        cfg_disc=data.get('config_disciplinas', [])
+        cfg_prof=data.get('config_professores', [])
+        avancadas=data.get('config_avancadas', {})
+        if not isinstance(cfg_disc,list) or not isinstance(cfg_prof,list) or not isinstance(avancadas,dict):
+            raise ValueError('Configurações inválidas.')
+        for item in cfg_disc:
+            if not isinstance(item,dict): raise ValueError('Configuração de disciplina inválida.')
+            _upd_cfg_disc(item.get('idx'), item)
+        for item in cfg_prof:
+            if not isinstance(item,dict): raise ValueError('Configuração de professor inválida.')
+            _upd_cfg_prof(item.get('idx'), item)
+        nv=avancadas.get('nivel_restricao',3)
+        try: nv=int(nv)
+        except (TypeError,ValueError): nv=3
+        if nv not in (1,2,3): nv=3
+        cfg={'estado_sabado':avancadas.get('estado_sabado','desativado'),'nivel_restricao':nv}
+        _normalizar_avancadas(cfg)
+        if cfg.get('estado_sabado') == 'desativado':
+            for disc_cfg in session.get('config_disciplinas', []):
+                if any(isinstance(slot,(list,tuple)) and len(slot)==2 and slot[0]=='Sábado' for slot in disc_cfg.get('fixacoes', [])):
+                    raise ValueError('Não é possível desativar o sábado enquanto houver aulas fixadas nesse dia.')
+        session['config_avancadas']=cfg
+        session.modified=True
+        auto_save()
+        return jsonify({'status':'ok','mensagem':'Alterações salvas. A próxima geração usará as novas regras.'})
+    except ValueError as exc:
+        for k,v in snapshot.items(): session[k]=v
+        session.modified=True
+        return jsonify({'status':'erro','mensagem':str(exc)}),400
+
 # =============================================================================
-# CSP SOLVER — Blocos 2/3 + Cascata de Níveis + Sábado 3 estados
+# MOTOR DE HORÁRIOS V2 — implementação isolada em services/solver.py
 # =============================================================================
+def gerar_grade(variant_seed=0):
+    return solve_schedule(
+        session.get('disciplinas_selecionadas', []),
+        session.get('professores_selecionados', []),
+        session.get('config_disciplinas', []),
+        session.get('config_professores', []),
+        session.get('grupos_choque', []),
+        session.get('config_avancadas', {}),
+        variant_seed=variant_seed,
+    )
 
-def decompor_blocos(N):
-    """Decompõe N aulas em blocos de 2 e 3. Bloco de 1 só aparece em N=1."""
-    if N<=0: return []
-    if N==1: return [1]
-    if N==2: return [2]
-    if N==3: return [3]
-    if N==4: return [2,2]
-    if N==5: return [3,2]
-    if N==6: return [3,3]
-    if N==7: return [3,2,2]
-    if N==8: return [3,3,2]
-    b,r=[],N
-    while r>=3: b.append(3); r-=3
-    if r>0: b.append(r)
-    return b
+def _qualidade_relatorio(relatorio):
+    """Compara resultados sem trocar uma grade boa por uma alternativa inferior.
 
-def _get_dias_para_nivel(nivel, estado_sabado):
-    if estado_sabado=='desativado': return DIAS_BASE
-    if estado_sabado=='normal': return DIAS_SABADO
-    return DIAS_SABADO if nivel>=3 else DIAS_BASE  # 'restrito'
+    O score heurístico pode variar entre duas grades completas igualmente úteis.
+    Para regenerar, a prioridade é preservar o nível de conclusão: status,
+    disciplinas alocadas e aulas alocadas. O score serve apenas para escolher a
+    melhor tentativa dentro do mesmo nível de conclusão.
+    """
+    relatorio = relatorio if isinstance(relatorio, dict) else {}
+    status=relatorio.get('status_geracao','impossivel')
+    return ({'sucesso':2,'parcial':1,'impossivel':0}.get(status,0),
+            int(relatorio.get('disciplinas_alocadas',0) or 0),
+            int(relatorio.get('aulas_alocadas',0) or 0),
+            float(relatorio.get('score',0) or 0))
 
-def _pode_usar_ultimo(nivel, bsz):
-    if nivel==1: return False
-    if nivel==2: return bsz>=3
-    return True
 
-def _pode_repetir_dia(nivel, blocos_dia, bsz):
-    if nivel==1: return False
-    if nivel==2: return blocos_dia<2 and bsz==2
-    return blocos_dia<2
+def _qualidade_resultado(resultado):
+    rel=resultado[5] if len(resultado)>5 and isinstance(resultado[5],dict) else {}
+    return _qualidade_relatorio(rel)
 
-def _conflito_grupo(dia, hora, uid, occ_global, grupos_choque, uid_to_nome):
-    nome=uid_to_nome.get(uid,'')
-    for g in grupos_choque:
-        dg=g.get('disciplinas',[])
-        if nome not in dg: continue
-        for ou in occ_global.get((dia,hora),[]):
-            if ou!=uid and uid_to_nome.get(ou,'') in dg and uid_to_nome.get(ou,'')!=nome: return True
-    return False
 
-def _tentar_bloco_nivel(dias_v, res, uid, bsz, nivel, occ_sem, occ_global,
-                         grupos_choque, u2n, dias_disc, bpd, estado_sabado):
-    periodos=[(0,4),(4,8)]; cands=[]
-    for dia in dias_v:
-        if dia=='Sábado' and estado_sabado=='restrito' and nivel<3: continue
-        blocos_dia=bpd.get(dia,0)
-        if blocos_dia>0 and not _pode_repetir_dia(nivel,blocos_dia,bsz): continue
-        for ini,fim in periodos:
-            for start in range(ini,fim-bsz+1):
-                slots=[(dia,HORARIOS[start+k]) for k in range(bsz)]
-                lh=slots[-1][1]
-                if lh==HORARIO_ULTIMO and not _pode_usar_ultimo(nivel,bsz): continue
-                ok=True
-                for(d,h) in slots:
-                    if[d,h] in res or occ_sem[(d,h)] or _conflito_grupo(d,h,uid,occ_global,grupos_choque,u2n):
-                        ok=False; break
-                if not ok: continue
-                pen=0
-                if lh==HORARIO_ULTIMO: pen+=20
-                if dia=='Sábado': pen+=50
-                if blocos_dia>0: pen+=10
-                pen+=dias_disc.get(dia,0)*3
-                cands.append((pen,random.random(),slots))
-    if not cands: return []
-    cands.sort(); top=cands[:min(3,len(cands))]; return random.choice(top)[2]
-
-def _undo(uid,placements,grade,occ_sem,occ_global):
-    for(d,h) in placements:
-        for lst in [grade[d][h],occ_sem[(d,h)],occ_global[(d,h)]]:
-            try: lst.remove(uid)
-            except ValueError: pass
-
-def _colocar_nivel(uid,cfg,nivel,estado_sabado,dias_v,grade,occ_sem,occ_global,grupos_choque,u2n):
-    N=int(cfg.get('aulas_semanais',2)); fix=cfg.get('fixacoes',[]); res=cfg.get('restricoes',[])
-    pls=[]; dias_disc={}; bpd={}
-    for sl in fix:
-        d,h=sl[0],sl[1]
-        if h not in HORARIOS: continue
-        if occ_sem[(d,h)] or _conflito_grupo(d,h,uid,occ_global,grupos_choque,u2n):
-            _undo(uid,pls,grade,occ_sem,occ_global); return False,[]
-        if d in dias_v:
-            grade[d][h].append(uid); occ_sem[(d,h)].append(uid); occ_global[(d,h)].append(uid)
-            pls.append((d,h)); dias_disc[d]=dias_disc.get(d,0)+1
-    nr=N-len(pls)
-    if nr<=0: return True,pls
-    for bsz in decompor_blocos(nr):
-        if bsz==1 and nivel<3: _undo(uid,pls,grade,occ_sem,occ_global); return False,[]
-        slots=_tentar_bloco_nivel(dias_v,res,uid,bsz,nivel,occ_sem,occ_global,grupos_choque,u2n,dias_disc,bpd,estado_sabado)
-        if not slots: _undo(uid,pls,grade,occ_sem,occ_global); return False,[]
-        for(d,h) in slots:
-            grade[d][h].append(uid); occ_sem[(d,h)].append(uid); occ_global[(d,h)].append(uid)
-            pls.append((d,h)); dias_disc[d]=dias_disc.get(d,0)+1
-        bpd[slots[0][0]]=bpd.get(slots[0][0],0)+1
-    return True,pls
-
-def _colocar_cascata(uid, cfg, estado_sabado, grade, occ_sem, occ_global, grupos_choque, u2n, nivel_max=3):
-    """Tenta colocar a disciplina do nível 1 até nivel_max. Se nivel_max=1, só tenta rígido."""
-    if nivel_max not in (1, 2, 3): nivel_max = 3
-    niveis_a_tentar = list(range(1, nivel_max + 1))
-    for nivel in niveis_a_tentar:
-        dias_v = _get_dias_para_nivel(nivel, estado_sabado)
-        ok, pls = _colocar_nivel(uid, cfg, nivel, estado_sabado, dias_v, grade, occ_sem, occ_global, grupos_choque, u2n)
-        if ok:
-            av = None if nivel == 1 else "Nível {}: '{}'.".format(nivel, u2n.get(uid, '?'))
-            return nivel, pls, av
-    # Falha: se nivel_max<3, explicar que ficou limitado
-    if nivel_max < 3:
-        return 0, [], "❌ Impossível no Nível ≤{}: '{}'.".format(nivel_max, u2n.get(uid, '?'))
-    return 0, [], "❌ Impossível: '{}'.".format(u2n.get(uid, '?'))
-
-def _score(grades_por_grupo, dias_base):
-    sc=0
-    for gkey,grade in grades_por_grupo.items():
-        for dia in dias_base:
-            if dia not in grade: continue
-            prev=None; run=0
-            for h in HORARIOS:
-                curr=tuple(sorted(grade[dia][h])) if grade[dia][h] else None
-                if curr and curr==prev: run+=1
-                else:
-                    if run>=2: sc+=(run-1)*4
-                    run=1 if curr else 0; prev=curr
-            if run>=2: sc+=(run-1)*4
-            if grade[dia].get(HORARIO_ULTIMO): sc-=8
-            idx=[i for i,h in enumerate(HORARIOS) if grade[dia].get(h)]
-            if len(idx)>=2: sc-=(idx[-1]-idx[0]+1-len(idx))*2
-        cnt=[sum(1 for h in HORARIOS if grade.get(d,{}).get(h)) for d in dias_base if d in grade]
-        if cnt:
-            m=sum(cnt)/len(cnt); sc-=sum((c-m)**2 for c in cnt)/len(cnt)*1.5
-    return sc
-
-def gerar_grade():
-    disciplinas=session.get('disciplinas_selecionadas',[])
-    professores=session.get('professores_selecionados',[])
-    config_disc=session.get('config_disciplinas',[])
-    config_prof=session.get('config_professores',[])
-    grupos_choque=session.get('grupos_choque',[])
-    config_avancadas=session.get('config_avancadas',{})
-    _normalizar_avancadas(config_avancadas); estado_sabado=config_avancadas.get('estado_sabado','desativado')
-    nivel_max = config_avancadas.get('nivel_restricao', 3)
-    relatorio={'erros':[],'avisos':[],'niveis':{},'fase1_ok':False,'fase2_ok':False,
-               'professores_sobrecarga':[],'disciplinas_sem_professor':[],'score':0,
-               'nivel_max_usuario': nivel_max}
-    u2n={disc_uid(d):d.get('nome','') for d in disciplinas}
-
-    # Verificação básica
-    for i,disc in enumerate(disciplinas):
-        cfg=config_disc[i] if i<len(config_disc) else {}
-        N=int(cfg.get('aulas_semanais',2))
-        if len(cfg.get('fixacoes',[]))>N:
-            relatorio['erros'].append("'{}': fixações > aulas/sem.".format(disc.get('nome','?')))
-    if relatorio['erros']: return {},{},{},{},{},relatorio
-
-    # Agrupamento (curso, semestre)
-    grupos=defaultdict(list)
-    for i,disc in enumerate(disciplinas):
-        cfg=config_disc[i] if i<len(config_disc) else {}
-        grupos[(disc.get('curso','Geral'), cfg.get('semestre_oferta',disc.get('semestre',1)))].append(i)
-
-    # Multi-restart Las Vegas
-    melhor=None; melhor_sc=-float('inf')
-    for attempt in range(6):
-        random.seed(attempt*31+7)
-        gpg={}; occ_global=defaultdict(list); avs=[]; nvs={}
-        for gkey in sorted(grupos.keys()):
-            curso,sem=gkey
-            dias_v=_get_dias_para_nivel(nivel_max, estado_sabado)
-            grade_g={d:{h:[] for h in HORARIOS} for d in dias_v}
-            occ_g=defaultdict(list)
-            ordered=sorted(grupos[gkey],key=lambda i:(-1 if config_disc[i].get('fixacoes') else 0,
-                -int(config_disc[i].get('aulas_semanais',2)),-len(config_disc[i].get('restricoes',[])),random.random()))
-            for i in ordered:
-                uid=disc_uid(disciplinas[i]); cfg=config_disc[i] if i<len(config_disc) else {}
-                nv,_,av=_colocar_cascata(uid,cfg,estado_sabado,grade_g,occ_g,occ_global,grupos_choque,u2n, nivel_max=nivel_max)
-                nvs[uid]=nv
-                if av: avs.append(av)
-            gpg[gkey]=grade_g
-        sc=_score(gpg,DIAS_BASE)-sum(1 for a in avs if '❌' in a)*200
-        if sc>melhor_sc: melhor_sc=sc; melhor=(gpg,avs,nvs)
-
-    grades_por_grupo,avisos,niveis=melhor
-    relatorio['avisos'].extend(avisos); relatorio['niveis']={u2n.get(k,k):v for k,v in niveis.items()}
-    relatorio['fase1_ok']=True; relatorio['score']=round(melhor_sc,2)
-
-    # Converter display — TODAS as tabelas usam o conjunto COMPLETO de dias
-    # (não filtra dias vazios → tabela sempre tem N colunas iguais)
-    dias_completos = _get_dias_para_nivel(nivel_max, estado_sabado)
-    grades_display={}
-    for gkey,grade in grades_por_grupo.items():
-        curso,sem=gkey; ks=grupo_key(curso,sem)
-        grades_display[ks]={
-            dia: {h: (', '.join(u2n.get(u,u) for u in grade.get(dia,{}).get(h,[])) if grade.get(dia,{}).get(h) else '—')
-                  for h in HORARIOS}
-            for dia in dias_completos
-        }
-
-    # Grade combinada
-    dias_max = dias_completos
-    gc={d:{h:[] for h in HORARIOS} for d in dias_max}
-    for gkey,grade in grades_por_grupo.items():
-        curso,sem=gkey; lbl='[{}º-{}]'.format(sem,curso)
-        for dia in grade:
-            if dia not in gc: gc[dia]={h:[] for h in HORARIOS}
-            for h in HORARIOS:
-                if grade[dia][h]: gc[dia][h].append('{} {}'.format(lbl,', '.join(u2n.get(u,u) for u in grade[dia][h])))
-    # Grade combinada: TAMBÉM com todas colunas
-    dias_comb = dias_completos
-    grade_display={d:{h:(' | '.join(gc[d][h]) if gc.get(d,{}).get(h) else '—') for h in HORARIOS} for d in dias_comb}
-
-    # FASE 2 — Professores
-    grade_prof=copy.deepcopy(grade_display)
-    prof_carga={p.get('nome',''):0 for p in professores}
-    prof_carga_max={p.get('nome',''):20 for p in professores}
-    h_por_prof={p.get('nome',''):[] for p in professores}
-
-    # Grade por professor — TODAS as colunas de dias (não filtra dias vazios)
-    grade_por_professor = {
-        p.get('nome',''): {d: {h:'—' for h in HORARIOS} for d in dias_completos}
-        for p in professores
-    }
-
-    # Grades por semestre COM PROFESSORES (mesma estrutura de grades_display, mas
-    # mostrando "Disciplina (Professor)" em cada célula)
-    grades_com_prof = {ks: {dia: {h:'—' for h in HORARIOS} for dia in dias_completos}
-                       for ks in grades_display.keys()}
-
-    uid_para_prof=defaultdict(list)
-    for pi,prof in enumerate(professores):
-        cp=config_prof[pi] if pi<len(config_prof) else {}
-        prof_carga_max[prof.get('nome','')] = int(cp.get('carga_maxima',20))
-        for di in cp.get('disciplinas_internas',[]):
-            try: di=int(di)
-            except: continue
-            if di<len(disciplinas):
-                uid=disc_uid(disciplinas[di])
-                uid_para_prof[uid].append({'nome':prof.get('nome',''),'carga_max':int(cp.get('carga_maxima',20)),
-                                           'indisp':cp.get('disponibilidade',[]),'n_disc':len(cp.get('disciplinas_internas',[]))})
-    discs_semprof=set(); occ_prof_slot=defaultdict(set)
-    for gkey,grade in grades_por_grupo.items():
-        curso,sem=gkey; lbl='[{}º-{}]'.format(sem,curso); ks=grupo_key(curso,sem)
-        for dia in dias_completos:
-            if dia not in grade: continue
-            for hora in HORARIOS:
-                if not grade[dia][hora]: continue
-                partes=[]; partes_sem_lbl=[]
-                for uid in grade[dia][hora]:
-                    nd=u2n.get(uid,uid); prof_ok=None
-                    cands=sorted(uid_para_prof.get(uid,[]),key=lambda c:(c['n_disc'],prof_carga.get(c['nome'],0)))
-                    for cand in cands:
-                        pn=cand['nome']
-                        if pn in occ_prof_slot[(dia,hora)]: continue
-                        if [dia,hora] in cand.get('indisp',[]): continue
-                        if prof_carga.get(pn,0)<cand['carga_max']:
-                            prof_ok=pn; prof_carga[pn]=prof_carga.get(pn,0)+1
-                            occ_prof_slot[(dia,hora)].add(pn); h_por_prof[pn].append('{} {} {}: {}'.format(lbl,dia,hora,nd))
-                            if pn in grade_por_professor and dia in grade_por_professor[pn]:
-                                grade_por_professor[pn][dia][hora]='{} {}'.format(lbl,nd)
-                            break
-                    if prof_ok:
-                        partes.append('{} ({})'.format(nd,prof_ok))
-                        partes_sem_lbl.append('{} ({})'.format(nd,prof_ok))
-                    else:
-                        partes.append(nd)
-                        partes_sem_lbl.append(nd)
-                        if uid_para_prof.get(uid): discs_semprof.add(nd)
-                grade_prof[dia][hora]='{} {}'.format(lbl,' | '.join(partes))
-                # Per-group "Com Professores" — sem o prefixo de grupo, fica idêntico ao por-semestre + (Prof)
-                grades_com_prof[ks][dia][hora] = ', '.join(partes_sem_lbl)
-
-    if discs_semprof: relatorio['disciplinas_sem_professor']=sorted(discs_semprof)
-    for pi,prof in enumerate(professores):
-        pn=prof.get('nome',''); cp=config_prof[pi] if pi<len(config_prof) else {}
-        if prof_carga.get(pn,0)>=int(cp.get('carga_maxima',20)): relatorio['professores_sobrecarga'].append(pn)
-
-    # Relatório de carga horária por professor (definida vs alocada)
-    relatorio['carga_por_professor'] = {
-        p.get('nome',''): {
-            'definida': prof_carga_max.get(p.get('nome',''), 20),
-            'alocada':  prof_carga.get(p.get('nome',''), 0),
-        }
-        for p in professores
-    }
-
-    relatorio['fase2_ok']=True
-    return grade_display, grade_prof, h_por_prof, grades_display, grade_por_professor, relatorio, grades_com_prof
+def _resultado_armazenado_para_tupla(anterior):
+    """Reconstrói o formato interno do solver a partir do resultado salvo."""
+    if not isinstance(anterior, dict):
+        return None
+    rel=anterior.get('relatorio', {})
+    if not isinstance(rel, dict) or not rel.get('assinatura_grade'):
+        return None
+    return (
+        anterior.get('grade_disciplinas', {}), anterior.get('grade_professores', {}),
+        anterior.get('horarios_professores', {}), anterior.get('grade_por_semestre', {}),
+        anterior.get('grade_por_professor', {}), copy.deepcopy(rel), anterior.get('grades_com_prof', {}),
+    )
 
 @app.route('/iniciar_geracao', methods=['POST'])
 def iniciar_geracao():
@@ -821,20 +1130,68 @@ def iniciar_geracao():
             session['config_disciplinas'] = [_cfg_padrao(d) for d in discs]
             session.modified = True
 
-        gd, gp, hp, gs, gpp, rel, gcp = gerar_grade()
+        payload=request.get_json(silent=True) or {}
+        regenerar=bool(payload.get('regenerar'))
+        anterior=_get_resultados() if regenerar else {}
+        rel_anterior=anterior.get('relatorio', {}) if isinstance(anterior,dict) else {}
+        assinatura_anterior=rel_anterior.get('assinatura_grade', '') if isinstance(rel_anterior,dict) else ''
+        cursor_anterior=int(rel_anterior.get('cursor_regeneracao', rel_anterior.get('semente_variacao', 0)) or 0)
+        semente_base=cursor_anterior + 1 if regenerar else 0
+        qualidade_anterior=_qualidade_relatorio(rel_anterior)
+        resultado_anterior=_resultado_armazenado_para_tupla(anterior) if regenerar else None
 
-        if rel.get('erros'):
-            return jsonify({'status':'erro',
-                            'mensagem':'Falha na validação dos dados',
-                            'erros':rel['erros']})
+        tentativas=[]
+        max_tentativas=5 if regenerar and assinatura_anterior else 1
+        escolhido=None
+        alternativa_encontrada=False
+        for tentativa in range(max_tentativas):
+            resultado=gerar_grade(semente_base + tentativa)
+            tentativas.append(resultado)
+            assinatura=(resultado[5] or {}).get('assinatura_grade','')
+            qualidade=_qualidade_resultado(resultado)
+            if escolhido is None or qualidade > _qualidade_resultado(escolhido):
+                escolhido=resultado
+            # Uma alternativa só substitui a grade visível quando mantém pelo
+            # menos o mesmo nível de conclusão da anterior. O score pode mudar.
+            if (regenerar and assinatura_anterior and assinatura and assinatura != assinatura_anterior
+                    and qualidade[:3] >= qualidade_anterior[:3]
+                    and resultado[5].get('status_geracao') != 'impossivel'):
+                escolhido=resultado
+                alternativa_encontrada=True
+                break
+        # Se nenhuma alternativa equivalente apareceu, mantém a grade anterior
+        # em vez de trocar silenciosamente por uma tentativa pior ou idêntica.
+        if regenerar and assinatura_anterior and not alternativa_encontrada and resultado_anterior:
+            escolhido=resultado_anterior
+        gd, gp, hp, gs, gpp, rel, gcp = escolhido
+        if regenerar:
+            ultimo_seed=semente_base + max(0, len(tentativas)-1)
+            rel['cursor_regeneracao']=ultimo_seed
+            if alternativa_encontrada:
+                mensagem_reg='Uma combinação diferente, com o mesmo nível de conclusão da anterior, foi encontrada e exibida.'
+                resultado_reg='alternativa_encontrada'
+            elif assinatura_anterior:
+                mensagem_reg=(f'Após {len(tentativas)} tentativa(s) adicionais, o motor não encontrou outra combinação diferente com qualidade equivalente. '
+                              'A grade anterior foi mantida. Isso pode indicar uma grade muito restrita ou uma solução praticamente única, mas não é uma prova matemática de unicidade. '
+                              'Ao clicar em Regerar novamente, o motor explorará novas tentativas.')
+                resultado_reg='mesma_combinacao'
+            else:
+                mensagem_reg='A grade anterior era de uma versão antiga. Uma nova tentativa foi executada com o motor atualizado.'
+                resultado_reg='nova_tentativa'
+            rel['regeneracao']={'solicitada':True,'tentativas':len(tentativas),'resultado':resultado_reg,'mensagem':mensagem_reg}
+        else:
+            rel['cursor_regeneracao']=int(rel.get('semente_variacao', 0) or 0)
+            rel['regeneracao']={'solicitada':False,'tentativas':1,'resultado':'primeira_geracao','mensagem':'Primeira combinação gerada.'}
 
-        # Anti-vazio
-        total_alocado = sum(1 for d in gd for h, c in gd[d].items() if c != '—')
-        if total_alocado == 0 and discs:
-            return jsonify({'status':'erro',
-                            'mensagem':'Não foi possível gerar uma grade com as configurações atuais',
-                            'erros':['Verifique se há slots suficientes considerando suas restrições.',
-                                     'Tente aumentar o nível de flexibilidade nas Configurações Avançadas.']})
+        status_motor = rel.get('status_geracao', 'impossivel')
+        if status_motor == 'impossivel':
+            return jsonify({
+                'status':'erro',
+                'mensagem':'Não foi possível montar uma grade válida com as configurações atuais.',
+                'erros':rel.get('erros') or [d.get('detalhes','') for d in rel.get('diagnosticos',[]) if d.get('severidade') == 'erro'],
+                'diagnosticos':rel.get('diagnosticos', []),
+                'relatorio':rel,
+            }), 422
 
         # Armazenar no STORE (não na session) e guardar apenas o token
         token = _store_resultados({
@@ -849,10 +1206,10 @@ def iniciar_geracao():
         session['resultado_token'] = token
         session.modified = True
         auto_save()
-        return jsonify({'status':'sucesso','relatorio':rel, 'token':token})
+        return jsonify({'status':('parcial' if rel.get('status_geracao') == 'parcial' else 'sucesso'),'relatorio':rel, 'token':token})
     except Exception as e:
         import traceback
-        return jsonify({'status':'erro','mensagem':str(e),'trace':traceback.format_exc()})
+        logging.exception('[Combinix] Falha inesperada na geração'); return jsonify({'status':'erro','mensagem':'Erro interno ao gerar a grade. Revise os dados e tente novamente.'}), 500
 
 # ─── Download / Export / Import / Reset / Tema ────────────────────────────
 @app.route('/download/<tipo>')
@@ -1103,6 +1460,7 @@ def export():
         'resultado_horarios_professores': res.get('horarios_professores', {}),
         'resultado_grade_por_semestre':   res.get('grade_por_semestre', {}),
         'resultado_grade_por_professor':  res.get('grade_por_professor', {}),
+        'resultado_grades_com_prof':       res.get('grades_com_prof', {}),
         'resultado_relatorio':            res.get('relatorio', {}),
     })
     buf = io.BytesIO(json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8'))
@@ -1114,14 +1472,49 @@ def import_state():
     try:
         f = request.files.get('file')
         if not f: return jsonify({'status':'erro','mensagem':'Nenhum arquivo enviado'})
-        data = json.loads(f.read().decode('utf-8'))
+        raw = f.read()
+        if len(raw) > app.config['MAX_CONTENT_LENGTH']:
+            return jsonify({'status':'erro','mensagem':'Arquivo muito grande. Limite: 2 MiB.'}), 413
+        data = json.loads(raw.decode('utf-8'))
+        if not isinstance(data, dict):
+            return jsonify({'status':'erro','mensagem':'Backup inválido: o JSON principal deve ser um objeto.'}), 400
+        raw_discs = data.get('disciplinas_selecionadas', [])
+        if not isinstance(raw_discs, list):
+            raise ValueError('Backup inválido: disciplinas selecionadas devem formar uma lista.')
+        vistos_disc, discs = set(), []
+        for x in raw_discs[:500]:
+            disc = _sanitize_disciplina(x)
+            uid = disc_uid(disc)
+            if uid not in vistos_disc:
+                vistos_disc.add(uid); discs.append(disc)
+        data['disciplinas_selecionadas'] = discs
+
+        raw_profs = data.get('professores_selecionados', [])
+        if not isinstance(raw_profs, list):
+            raise ValueError('Backup inválido: professores selecionados devem formar uma lista.')
+        vistos = set(); profs = []
+        for x in raw_profs[:500]:
+            prof = _sanitize_professor(x)
+            if prof['nome'] not in vistos:
+                vistos.add(prof['nome']); profs.append(prof)
+        data['professores_selecionados'] = profs
+
+        raw_cfg_disc = data.get('config_disciplinas', [])
+        if not isinstance(raw_cfg_disc, list): raise ValueError('Backup inválido: configurações de disciplinas devem formar uma lista.')
+        data['config_disciplinas'] = [_sanitize_imported_disc_config(raw_cfg_disc[i] if i < len(raw_cfg_disc) else {}, disc, {p['nome'] for p in profs}) for i, disc in enumerate(discs)]
+        raw_cfg_prof = data.get('config_professores', [])
+        if not isinstance(raw_cfg_prof, list): raise ValueError('Backup inválido: configurações de professores devem formar uma lista.')
+        data['config_professores'] = [_sanitize_imported_prof_config(raw_cfg_prof[i] if i < len(raw_cfg_prof) else {}, len(discs)) for i, _prof in enumerate(profs)]
+        data['grupos_choque'] = _sanitize_imported_groups(data.get('grupos_choque', []), discs)
+        data['config_avancadas'] = solver_normalizar_avancadas(data.get('config_avancadas', {}))
         # Dados leves → sessão
         for k in _SESSION_KEYS:
             if k in data: session[k] = data[k]
+        _sincronizar_professores_fixos()
         # Resultados → store (se houver)
         res_keys = ['resultado_grade_disciplinas','resultado_grade_professores',
                     'resultado_horarios_professores','resultado_grade_por_semestre',
-                    'resultado_grade_por_professor','resultado_relatorio']
+                    'resultado_grade_por_professor','resultado_grades_com_prof','resultado_relatorio']
         if any(k in data and data[k] for k in res_keys):
             dados = {
                 'grade_disciplinas':     data.get('resultado_grade_disciplinas', {}),
@@ -1129,6 +1522,7 @@ def import_state():
                 'horarios_professores':  data.get('resultado_horarios_professores', {}),
                 'grade_por_semestre':    data.get('resultado_grade_por_semestre', {}),
                 'grade_por_professor':   data.get('resultado_grade_por_professor', {}),
+                'grades_com_prof':        data.get('resultado_grades_com_prof', {}),
                 'relatorio':             data.get('resultado_relatorio', {}),
             }
             token = _store_resultados(dados)
@@ -1136,15 +1530,19 @@ def import_state():
         session.modified = True
         auto_save()
         return jsonify({'status':'sucesso'})
-    except Exception as e:
-        return jsonify({'status':'erro','mensagem':str(e)})
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return jsonify({'status':'erro','mensagem':'Backup inválido: '+str(exc)}), 400
+    except Exception:
+        logging.exception('[Combinix] Erro ao importar backup')
+        return jsonify({'status':'erro','mensagem':'Não foi possível importar o backup.'}), 500
 
 @app.route('/reset', methods=['POST'])
 def reset():
     """Reset COMPLETO: limpa sessão + state.json + resultados do usuário."""
+    workspace = _workspace_id()
     _limpar_resultados_usuario()
     session.clear()
-    reset_state()
+    reset_state(workspace)
     return jsonify({'status':'ok'})
 
 @app.route('/reset_configuracoes', methods=['POST'])
@@ -1177,8 +1575,8 @@ def reset_resultados():
 def salvar_tema():
     data=request.get_json(force=True,silent=True) or {}
     if not data: data=request.form.to_dict()
-    session['tema']=data.get('tema','claro'); session.modified=True; auto_save()
+    session['tema']=data.get('tema','claro') if data.get('tema','claro') in {'claro','escuro'} else 'claro'; session.modified=True; auto_save()
     return jsonify({'status':'ok'})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=os.environ.get('COMBINIX_DEBUG') == '1', host=os.environ.get('COMBINIX_HOST', '127.0.0.1'), port=int(os.environ.get('COMBINIX_PORT', '5000')))

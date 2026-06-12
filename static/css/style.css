@@ -912,7 +912,7 @@ hr      { border-color: var(--border-soft); opacity: 1; transition: border-color
     font-size: .95rem;
     text-decoration: none;
     box-shadow: 0 8px 20px rgba(108, 158, 191, 0.35), 0 2px 6px rgba(0,0,0,0.1);
-    display: inline-flex !important;
+    display: inline-flex;
     align-items: center;
     gap: .4rem;
     transition: transform .2s ease, box-shadow .2s ease, bottom .25s ease;
@@ -973,4 +973,45 @@ hr      { border-color: var(--border-soft); opacity: 1; transition: border-color
     .floating-next.no-sticky {
         bottom: 16px;
     }
+}
+/* =============================================================================
+   COMBINIX V2 — diagnósticos acionáveis
+   ============================================================================= */
+.diagnostic-item {
+    padding: .85rem 1rem;
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: var(--radius-sm);
+    background: var(--bg2);
+    margin-bottom: .7rem;
+}
+.diagnostic-item:last-child { margin-bottom: 0; }
+.diagnostic-error { border-left-color: var(--danger); }
+.diagnostic-warning { border-left-color: var(--warning); }
+
+
+/* =============================================================================
+   COMBINIX V2 — resumo, acessibilidade e modo local
+   ============================================================================= */
+.local-mode-badge {
+    display:inline-flex; align-items:center; padding:.16rem .45rem; border-radius:999px;
+    background:var(--bg2); border:1px solid var(--border); color:var(--text-muted);
+    font-size:.62rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+}
+.config-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.65rem; }
+.config-summary-item {
+    display:flex; align-items:center; gap:.7rem; padding:.75rem .85rem; border:1px solid var(--border);
+    border-radius:var(--radius-sm); background:var(--card);
+}
+.config-summary-item i { width:1.2rem; text-align:center; }
+.config-summary-item strong { display:block; font-size:1rem; line-height:1.1; }
+.config-summary-item small { display:block; color:var(--text-muted); font-size:.7rem; }
+.admin-tools { border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg2); padding:.7rem .85rem; }
+.admin-tools summary { cursor:pointer; font-weight:700; font-size:.86rem; color:var(--text); }
+.slot-cell[role="button"]:focus-visible { outline:3px solid var(--primary); outline-offset:-3px; }
+.app-footer { font-size:.76rem; }
+@media (max-width:768px) {
+    .config-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .floating-next { max-width:calc(100vw - 24px); justify-content:center; }
+    .save-bar-sticky { flex-wrap:wrap; }
 }

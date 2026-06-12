@@ -7,13 +7,21 @@
 <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div>
         <h2><i class="fas fa-layer-group text-primary me-2"></i>Seleção</h2>
-        <p>Selecione <strong>disciplinas e professores</strong> nesta tela. Tudo estará disponível para configurar na próxima etapa.</p>
+        <p><strong>Monte grades acadêmicas automaticamente</strong>, respeitando cargas horárias, conflitos e disponibilidade docente.</p>
+        <small class="text-muted">Nesta primeira etapa, selecione as disciplinas e os professores que farão parte do planejamento.</small>
     </div>
     <div class="steps">
         <span class="step active"><span class="counter me-1">1</span>Seleção</span>
         <a href="/config" class="step"><span class="counter me-1">2</span>Configuração</a>
         <a href="/generate" class="step"><span class="counter me-1">3</span>Geração</a>
     </div>
+</div>
+
+<div class="d-flex align-items-center gap-2 mb-3" aria-live="polite" aria-atomic="true">
+    <span id="selectionSaveStatus" class="chip chip-success">
+        <i class="fas fa-check-circle me-1"></i>Seleções sincronizadas
+    </span>
+    <small class="text-muted">As disciplinas e os professores são gravados juntos neste computador.</small>
 </div>
 
 <div class="row g-3">
@@ -59,7 +67,7 @@
                     </div>
                     <div class="col-5">
                         <label class="form-label">Busca</label>
-                        <input type="text" id="searchDisc" class="form-control form-control-sm"
+                        <input type="text" id="searchDisc" class="form-control form-control-sm" aria-label="Buscar disciplina"
                                placeholder="🔍 Buscar..." disabled>
                     </div>
                 </div>
@@ -85,23 +93,23 @@
                 <p class="section-title mb-2">Adicionar manualmente</p>
                 <div class="row g-2">
                     <div class="col-8">
-                        <input type="text" id="novaDiscNome" class="form-control form-control-sm"
+                        <input type="text" id="novaDiscNome" class="form-control form-control-sm" aria-label="Nome da disciplina"
                                placeholder="Nome da disciplina">
                     </div>
                     <div class="col-4">
-                        <input type="text" id="novaDiscCodigo" class="form-control form-control-sm"
+                        <input type="text" id="novaDiscCodigo" class="form-control form-control-sm" aria-label="Código da disciplina"
                                placeholder="Código">
                     </div>
                     <div class="col-5">
-                        <input type="text" id="novaDiscCurso" class="form-control form-control-sm"
+                        <input type="text" id="novaDiscCurso" class="form-control form-control-sm" aria-label="Curso da disciplina"
                                placeholder="Curso">
                     </div>
                     <div class="col-3">
-                        <input type="number" id="novaDiscSemestre" class="form-control form-control-sm"
+                        <input type="number" id="novaDiscSemestre" class="form-control form-control-sm" aria-label="Semestre da disciplina"
                                placeholder="Sem." min="1" max="10">
                     </div>
                     <div class="col-4">
-                        <input type="number" id="novaDiscCarga" class="form-control form-control-sm"
+                        <input type="number" id="novaDiscCarga" class="form-control form-control-sm" aria-label="Carga horária da disciplina"
                                placeholder="C.H." min="15">
                     </div>
                     <div class="col-12">
@@ -145,7 +153,7 @@
                 </div>
 
                 <div class="mb-2">
-                    <input type="text" id="searchProf" class="form-control"
+                    <input type="text" id="searchProf" class="form-control" aria-label="Buscar professor"
                            placeholder="🔍 Buscar professor..." disabled>
                 </div>
 
@@ -169,7 +177,7 @@
 
                 <p class="section-title mb-2">Adicionar manualmente</p>
                 <div class="input-group">
-                    <input type="text" id="novoProfNome" class="form-control"
+                    <input type="text" id="novoProfNome" class="form-control" aria-label="Nome do professor"
                            placeholder="Nome do professor">
                     <button id="addProfBtn" class="btn btn-success">
                         <i class="fas fa-plus me-1"></i>Adicionar
@@ -223,6 +231,9 @@ var disciplinasDisponiveis  = [];
 var professoresDisponiveis  = [];
 var disciplinasSelecionadas = {{ session.get('disciplinas_selecionadas', []) | tojson }};
 var professoresSelecionados = {{ session.get('professores_selecionados', []) | tojson }};
+// Disponibiliza somente os contadores para a validação central do fluxo.
+window.disciplinasSelecionadas = disciplinasSelecionadas;
+window.professoresSelecionados = professoresSelecionados;
 
 
 function escHtml(s) {
@@ -296,19 +307,62 @@ function atualizarUI() {
 }
 
 
-function salvarSelecoes() {
-    fetch('/selecionar_disciplinas', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ disciplinas: disciplinasSelecionadas })
-    }).then(function () { showAutoSave(); });
+var salvarSelecoesFila = Promise.resolve();
+var salvarSelecoesRevisao = 0;
 
-    fetch('/selecionar_professores', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ professores: professoresSelecionados })
-    });
+function atualizarStatusSelecoes(tipo, mensagem) {
+    var el = document.getElementById('selectionSaveStatus');
+    if (!el) return;
+    var mapa = {
+        salvando: { classe: 'chip chip-lilac', icone: 'fas fa-spinner fa-spin' },
+        salvo:    { classe: 'chip chip-success', icone: 'fas fa-check-circle' },
+        erro:     { classe: 'chip chip-danger', icone: 'fas fa-exclamation-triangle' }
+    };
+    var cfg = mapa[tipo] || mapa.salvo;
+    el.className = cfg.classe;
+    el.innerHTML = '<i class="' + cfg.icone + ' me-1"></i>' + escHtml(mensagem);
 }
+
+function salvarSelecoes() {
+    var revisao = ++salvarSelecoesRevisao;
+    var snapshot = {
+        disciplinas: disciplinasSelecionadas.map(function (d) { return Object.assign({}, d); }),
+        professores: professoresSelecionados.map(function (p) { return Object.assign({}, p); })
+    };
+    atualizarStatusSelecoes('salvando', 'Salvando seleções...');
+
+    // Serializa alterações rápidas. A versão anterior disparava duas requisições
+    // concorrentes e uma resposta podia sobrescrever a outra no cookie do Flask.
+    salvarSelecoesFila = salvarSelecoesFila.catch(function () {}).then(function () {
+        return fetch('/salvar_selecoes', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(snapshot)
+        }).then(function (r) {
+            return r.json().then(function (data) {
+                if (!r.ok || data.status !== 'ok') {
+                    throw new Error(data.mensagem || 'Não foi possível salvar as seleções.');
+                }
+                return data;
+            });
+        });
+    }).then(function (data) {
+        if (revisao === salvarSelecoesRevisao) {
+            atualizarStatusSelecoes('salvo', data.disciplinas_salvas + ' disciplinas e ' + data.professores_salvos + ' professores salvos');
+            showAutoSave();
+        }
+        return data;
+    }).catch(function (err) {
+        atualizarStatusSelecoes('erro', 'Erro ao salvar: ' + err.message);
+        throw err;
+    });
+
+    return salvarSelecoesFila;
+}
+
+window.aguardarSalvamentoSelecoes = function () {
+    return salvarSelecoesFila;
+};
 
 
 function renderizarDisciplinas() {
@@ -665,6 +719,16 @@ document.addEventListener('DOMContentLoaded', function () {
         fd.append('index', btn.getAttribute('data-index'));
         fetch('/remover_professor', { method: 'POST', body: fd })
             .then(function () { location.reload(); });
+    });
+
+    document.querySelectorAll('.steps a[href="/config"]').forEach(function (link) {
+        link.addEventListener('click', function (event) {
+            event.preventDefault();
+            var destino = this.getAttribute('href');
+            window.aguardarSalvamentoSelecoes()
+                .then(function () { window.location.href = destino; })
+                .catch(function () { alert('Não foi possível salvar as seleções. Corrija o erro exibido antes de avançar.'); });
+        });
     });
 
     atualizarUI();

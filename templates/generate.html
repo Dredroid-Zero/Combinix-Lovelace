@@ -3,7 +3,7 @@
 
 <div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div><h2><i class="fas fa-bolt text-primary me-2"></i>Geração de Grade</h2>
-    <p>CSP Solver: blocos 2/3 · cascata de níveis · distribuição inteligente</p></div>
+    <p>Motor V2: blocos pedagógicos · busca retroativa · diagnóstico de conflitos · atribuição docente controlada</p></div>
     <div class="steps">
         <a href="/" class="step done"><span class="counter me-1">✓</span>Seleção</a>
         <a href="/config" class="step done"><span class="counter me-1">✓</span>Configuração</a>
@@ -19,8 +19,8 @@
         <li id="s1" class="step-loading">⏳ Validando hard constraints</li>
         <li id="s2" class="step-loading">⏳ Decompondo em blocos 2/3</li>
         <li id="s3" class="step-loading">⏳ Cascata Nível 1→2→3</li>
-        <li id="s4" class="step-loading">⏳ Multi-restart + scoring</li>
-        <li id="s5" class="step-loading">⏳ Atribuindo professores</li>
+        <li id="s4" class="step-loading">⏳ Testando combinações e retrocessos</li>
+        <li id="s5" class="step-loading">⏳ Consolidando professores e diagnósticos</li>
     </ul>
 </div>
 
@@ -54,13 +54,80 @@
             </ul>
         </div>
         {% endif %}
-        <a href="/config" class="btn btn-outline-secondary ms-auto"><i class="fas fa-arrow-left me-1"></i>Config</a>
+        <a href="/config?return=/generate" class="btn btn-outline-secondary ms-auto"><i class="fas fa-arrow-left me-1"></i>Config</a>
     </div>
 </div>
 
 <div id="erroMsg" class="alert alert-danger" style="display:none" role="alert"></div>
 
+{% if alteracoes_salvas %}
+<div class="alert alert-success mb-3" role="status">
+    <i class="fas fa-circle-check me-2"></i><strong>Alterações salvas.</strong>
+    As próximas tentativas usarão as novas configurações. Clique em <strong>{{ 'Regerar' if show_results else 'Gerar Grade' }}</strong> para atualizar a combinação.
+</div>
+{% endif %}
+
 {% if show_results and relatorio %}
+{% set status_geracao = relatorio.get('status_geracao', 'sucesso') %}
+<div class="alert {% if status_geracao == 'sucesso' %}alert-success{% elif status_geracao == 'parcial' %}alert-warning{% else %}alert-danger{% endif %} mb-3">
+    <strong>
+        {% if status_geracao == 'sucesso' %}<i class="fas fa-check-circle me-2"></i>Grade completa gerada
+        {% elif status_geracao == 'parcial' %}<i class="fas fa-triangle-exclamation me-2"></i>Grade parcial: revise antes de usar
+        {% else %}<i class="fas fa-circle-xmark me-2"></i>Não foi possível concluir a grade{% endif %}
+    </strong>
+    <div class="mt-1" style="font-size:.85rem">
+        {{ relatorio.get('disciplinas_alocadas', 0) }} de {{ relatorio.get('total_disciplinas', 0) }} disciplinas ·
+        {{ relatorio.get('aulas_alocadas', 0) }} de {{ relatorio.get('aulas_previstas', 0) }} aulas alocadas.
+    </div>
+    {% if relatorio.get('disciplinas_nao_alocadas') %}
+    <div class="mt-2"><strong>Pendentes:</strong>
+        {% for d in relatorio.get('disciplinas_nao_alocadas', []) %}<span class="chip chip-danger me-1">{{ d }}</span>{% endfor %}
+    </div>{% endif %}
+</div>
+{% set regen = relatorio.get('regeneracao', {}) %}
+{% if regen.get('solicitada') %}
+<div class="alert {% if regen.get('resultado') == 'alternativa_encontrada' %}alert-success{% else %}alert-info{% endif %} mb-3">
+    <strong><i class="fas {% if regen.get('resultado') == 'alternativa_encontrada' %}fa-shuffle{% else %}fa-circle-info{% endif %} me-2"></i>Resultado da regeneração</strong>
+    <div class="mt-1" style="font-size:.85rem">{{ regen.get('mensagem', '') }}</div>
+</div>
+{% endif %}
+{% if relatorio.get('diagnosticos') %}
+<div class="card mb-3">
+    <div class="card-header"><i class="fas fa-stethoscope text-primary me-2"></i>Diagnóstico e ações recomendadas</div>
+    <div class="card-body">
+        {% for diag in relatorio.get('diagnosticos', []) %}
+        <div class="diagnostic-item {% if diag.get('severidade') == 'erro' %}diagnostic-error{% else %}diagnostic-warning{% endif %}">
+            <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap">
+                <strong><i class="fas {% if diag.get('severidade') == 'erro' %}fa-circle-xmark text-danger{% else %}fa-triangle-exclamation text-warning{% endif %} me-1"></i>{{ diag.get('titulo', 'Atenção') }}</strong>
+                <span class="chip {% if diag.get('severidade') == 'erro' %}chip-danger{% else %}chip-warning{% endif %}">{{ 'Correção necessária' if diag.get('severidade') == 'erro' else 'Revisar' }}</span>
+            </div>
+            <p class="mb-2 mt-2" style="font-size:.84rem">{{ diag.get('detalhes', '') }}</p>
+            {% if diag.get('acoes') %}<div class="diagnostic-actions-text"><strong>O que pode resolver:</strong><ul class="mb-2 mt-1" style="font-size:.8rem">
+                {% for acao in diag.get('acoes', []) %}<li>{{ acao }}</li>{% endfor %}
+            </ul></div>{% endif %}
+            {% if diag.get('atalhos') %}<div class="d-flex gap-2 flex-wrap mt-2">
+                {% for atalho in diag.get('atalhos', []) %}<a class="btn btn-sm btn-outline-primary diagnostic-shortcut" href="{{ atalho.get('href', '/config?return=/generate') }}"><i class="fas {{ atalho.get('icone', 'fa-arrow-up-right-from-square') }} me-1"></i>{{ atalho.get('rotulo', 'Abrir configuração') }}</a>{% endfor %}
+            </div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% if relatorio.get('disciplinas_externas') %}
+<div class="alert alert-info"><strong><i class="fas fa-building-columns me-2"></i>Disciplinas com professor externo:</strong>
+    {% for d in relatorio.get('disciplinas_externas', []) %}<span class="chip chip-lilac me-1">{{ d }}</span>{% endfor %}
+    <small class="d-block mt-1">Essas disciplinas ocupam horário na grade, mas não utilizam a carga dos docentes selecionados para este curso.</small>
+</div>{% endif %}
+{% if relatorio.get('docencia_compartilhada_usada') %}
+<div class="alert alert-info"><strong><i class="fas fa-people-arrows me-2"></i>Docência compartilhada utilizada:</strong>
+    {% for d in relatorio.get('docencia_compartilhada_usada', []) %}<span class="chip chip-lilac me-1">{{ d }}</span>{% endfor %}
+</div>{% endif %}
+{% if relatorio.get('professores_abaixo_carga_alvo') %}
+<div class="alert alert-warning">
+    <strong><i class="fas fa-user-clock me-2"></i>Professores abaixo da carga alvo:</strong>
+    {% for p in relatorio.get('professores_abaixo_carga_alvo', []) %}<span class="chip chip-warning me-1">{{ p }}</span>{% endfor %}
+    <small class="d-block mt-1">A grade de disciplinas pode estar completa, mas a distribuição docente ainda precisa de revisão.</small>
+</div>{% endif %}
 {% if relatorio.avisos %}
 <div class="alert alert-warning">
     <strong><i class="fas fa-exclamation-triangle me-2"></i>Avisos:</strong>
@@ -87,7 +154,7 @@
 <div class="alert alert-warning">
     <strong><i class="fas fa-user-slash me-2"></i>Sem professor:</strong>
     {% for d in relatorio.disciplinas_sem_professor %}<span class="chip chip-danger me-1">{{ d }}</span>{% endfor %}
-    <small class="d-block mt-1"><a href="/config" class="alert-link">Configure em Professores →</a></small>
+    <small class="d-block mt-1"><a href="/config?tab=professores&return=/generate" class="alert-link">Configurar professores →</a></small>
 </div>{% endif %}
 {% endif %}
 
@@ -98,20 +165,20 @@
 
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-3"><div class="card text-center py-3">
-        <div style="font-size:1.6rem;font-weight:700;color:var(--primary)">{{ n_slots.n }}</div>
-        <div class="text-muted" style="font-size:.8rem">Slots preenchidos</div>
+        <div style="font-size:1.6rem;font-weight:700;color:var(--primary)">{{ relatorio.get('disciplinas_alocadas', 0) }}/{{ relatorio.get('total_disciplinas', 0) }}</div>
+        <div class="text-muted" style="font-size:.8rem">Disciplinas alocadas</div>
     </div></div>
     <div class="col-6 col-md-3"><div class="card text-center py-3">
-        <div style="font-size:1.6rem;font-weight:700;color:var(--success)">{{ grade_por_semestre|length }}</div>
-        <div class="text-muted" style="font-size:.8rem">Grupos (curso × sem)</div>
+        <div style="font-size:1.6rem;font-weight:700;color:var(--success)">{{ relatorio.get('aulas_alocadas', 0) }}/{{ relatorio.get('aulas_previstas', 0) }}</div>
+        <div class="text-muted" style="font-size:.8rem">Aulas alocadas</div>
     </div></div>
     <div class="col-6 col-md-3"><div class="card text-center py-3">
         <div style="font-size:1.6rem;font-weight:700;color:var(--accent-lilac)">{{ grade_por_professor.keys()|list|length }}</div>
         <div class="text-muted" style="font-size:.8rem">Professores</div>
     </div></div>
     <div class="col-6 col-md-3"><div class="card text-center py-3">
-        <div style="font-size:1.6rem;font-weight:700;color:var(--warning)">{{ relatorio.score if relatorio.score is defined else '—' }}</div>
-        <div class="text-muted" style="font-size:.8rem">Score CSP</div>
+        <div style="font-size:1.6rem;font-weight:700;color:var(--warning)">{{ relatorio.get('disciplinas_nao_alocadas', [])|length }}</div>
+        <div class="text-muted" style="font-size:.8rem">Pendências</div>
     </div></div>
 </div>
 
@@ -242,7 +309,8 @@ Nenhum professor atribuído. <a href="/config" class="alert-link">Configure em P
 
 {% for prof, grade_p in grade_por_professor.items() %}
 {% set carga = relatorio.get('carga_por_professor', {}).get(prof, {}) %}
-{% set definida = carga.get('definida', '?') %}
+{% set definida = carga.get('maxima', carga.get('definida', '?')) %}
+{% set alvo     = carga.get('alvo', definida) %}
 {% set alocada  = carga.get('alocada', 0) %}
 <div class="card mb-3">
     <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -251,13 +319,21 @@ Nenhum professor atribuído. <a href="/config" class="alert-link">Configure em P
             <strong>{{ prof }}</strong>
         </div>
         <div class="d-flex gap-2 flex-wrap" style="font-size:.78rem">
-            <span class="chip chip-teal"><i class="fas fa-clock me-1"></i>
-                Carga Definida: <strong>{{ definida }}h/sem</strong>
+            {% if carga.get('externo') %}
+            <span class="chip chip-lilac"><i class="fas fa-building-columns me-1"></i>Docente de outro curso</span>
+            <span class="chip"><i class="fas fa-calendar-check me-1"></i>Aulas externas na grade: <strong>{{ alocada }}</strong></span>
+            {% else %}
+            <span class="chip chip-teal"><i class="fas fa-bullseye me-1"></i>
+                Carga Alvo: <strong>{{ alvo }}h/sem</strong>
             </span>
-            <span class="chip {% if alocada >= definida %}chip-warning{% else %}chip-success{% endif %}">
+            <span class="chip"><i class="fas fa-gauge-high me-1"></i>
+                Limite Máximo: <strong>{{ definida }}h/sem</strong>
+            </span>
+            <span class="chip {% if alocada >= alvo %}chip-success{% else %}chip-warning{% endif %}">
                 <i class="fas fa-check-circle me-1"></i>
                 Carga Alocada: <strong>{{ alocada }}h/sem</strong>
             </span>
+            {% endif %}
         </div>
     </div>
     <div class="card-body p-0">
@@ -322,6 +398,8 @@ Nenhum professor atribuído. <a href="/config" class="alert-link">Configure em P
 .step-loading.done { opacity:1; color:var(--success); }
 .step-loading.active { opacity:1; color:#fff; font-weight:600; }
 .vr { width:1px; background:var(--border); }
+.diagnostic-actions-text { padding:.5rem .65rem; background:var(--card); border-radius:8px; border:1px dashed var(--border); }
+.diagnostic-shortcut { font-size:.76rem; }
 @media print {
     .navbar,.page-header .steps,#resultTabs,.card:has(#gerarGradeBtn) { display:none!important; }
     #result-por-semestre { display:block!important; }
@@ -362,8 +440,9 @@ function iniciarGeracao(){
     var err=document.getElementById('erroMsg');
     var btnLabelOriginal=btn.innerHTML;
     var t0 = Date.now();
+    var regerar = {{ 'true' if show_results else 'false' }};
 
-    console.log('[Combinix] Iniciando geração de grade...');
+    console.log('[Combinix] Iniciando geração de grade...', regerar ? 'modo regeneração' : 'primeira geração');
 
     document.querySelectorAll('.step-loading').forEach(function(s){
         s.classList.remove('done','active');
@@ -400,14 +479,30 @@ function iniciarGeracao(){
         }, minDelay + 200);
     }
 
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch){
+            return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[ch];
+        });
+    }
+
     function finalizarErro(d) {
         clearTimeout(safetyTimeout);
         overlay.classList.remove('show');
         btn.disabled=false; btn.innerHTML=btnLabelOriginal;
-        var msg='<strong>❌ '+(d.mensagem||'Falha na geração')+'</strong>';
+        var msg='<strong>❌ '+escapeHtml(d.mensagem||'Falha na geração')+'</strong>';
         if(d.erros&&d.erros.length){
             msg+='<ul class="mt-2 mb-0">';
-            d.erros.forEach(function(e){msg+='<li>'+e+'</li>';});
+            d.erros.forEach(function(e){msg+='<li>'+escapeHtml(e)+'</li>';});
+            msg+='</ul>';
+        }
+        if(d.diagnosticos&&d.diagnosticos.length){
+            msg+='<hr><strong>O que ajustar:</strong><ul class="mt-2 mb-0">';
+            d.diagnosticos.slice(0,6).forEach(function(diag){
+                msg+='<li><strong>'+escapeHtml(diag.titulo||'Conflito')+':</strong> '+escapeHtml(diag.detalhes||'');
+                if(diag.acoes&&diag.acoes.length) msg+='<br><small>→ '+escapeHtml(diag.acoes[0])+'</small>';
+                if(diag.atalhos&&diag.atalhos.length){msg+='<div class="mt-1">';diag.atalhos.slice(0,2).forEach(function(a){msg+='<a class="btn btn-sm btn-outline-primary me-1 mt-1" href="'+escapeHtml(a.href||'/config?return=/generate')+'">'+escapeHtml(a.rotulo||'Abrir configuração')+'</a>';});msg+='</div>';}
+                msg+='</li>';
+            });
             msg+='</ul>';
         }
         msg+='<hr><small class="d-block">Verifique as configurações em <a href="/config" class="alert-link">Configurações</a> ou as seleções em <a href="/" class="alert-link">Seleção</a>.</small>';
@@ -416,13 +511,13 @@ function iniciarGeracao(){
         console.error('[Combinix] Erro de geração:', d);
     }
 
-    fetch('/iniciar_geracao',{method:'POST'})
+    fetch('/iniciar_geracao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({regenerar:regerar})})
         .then(function(r){
-            if(!r.ok) throw new Error('Servidor retornou status ' + r.status);
-            return r.json();
+            return r.json().then(function(d){return{ok:r.ok,data:d};});
         })
-        .then(function(d){
-            if(d.status==='sucesso') finalizarSucesso(d);
+        .then(function(resp){
+            var d=resp.data||{};
+            if(resp.ok&&(d.status==='sucesso' || d.status==='parcial')) finalizarSucesso(d);
             else finalizarErro(d);
         })
         .catch(function(e){

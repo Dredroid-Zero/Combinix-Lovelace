@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+database/.secret_key
+database/resultados.json
+database/*.corrupted
+database/workspaces/*/state.json
+database/workspaces/*/state.backup.json

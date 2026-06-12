@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Combinix Lovelace</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -20,6 +21,7 @@
                 <img src="{{ url_for('static', filename='img/logo.png') }}"
                      alt="Combinix Lovelace" class="logo">
                 <span>Combinix Lovelace</span>
+                <span class="local-mode-badge ms-2" title="Execução local: os dados ficam neste computador">Local</span>
             </a>
             <div class="navbar-nav ms-auto d-flex flex-row align-items-center">
                 <a class="nav-link" href="#" id="themeToggleBtn" title="Alternar modo claro/escuro">
@@ -37,7 +39,7 @@
     <!-- Toast de auto-save -->
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
         <div id="autoSaveToast" class="toast bg-success text-white border-0"
-             data-bs-autohide="true" data-bs-delay="2000">
+             data-bs-autohide="true" data-bs-delay="2000" role="status" aria-live="polite" aria-atomic="true">
             <div class="toast-body py-2 px-3">
                 <i class="fas fa-check-circle me-2"></i>Salvo automaticamente
             </div>
@@ -53,8 +55,23 @@
     <!-- Input oculto (usado pela página Seleção) -->
     <input type="file" id="importFile" style="display:none;" accept=".json">
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+    <script>
+    // Proteção CSRF transparente para todas as alterações locais.
+    (function () {
+        var originalFetch = window.fetch.bind(window);
+        var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        window.fetch = function(resource, options) {
+            options = options || {};
+            var method = String(options.method || 'GET').toUpperCase();
+            if (['POST','PUT','PATCH','DELETE'].indexOf(method) >= 0) {
+                options.headers = new Headers(options.headers || {});
+                options.headers.set('X-CSRF-Token', csrf);
+            }
+            return originalFetch(resource, options);
+        };
+    })();
+    </script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
     <script>
@@ -175,6 +192,20 @@
             if (path === '/' || path === '/index') {
                 setNext('/config', 'Próximo: Configurar');
                 btn.classList.add('no-sticky');  // index não tem barra Salvar sticky
+                btn.addEventListener('click', function(e) {
+                    if (Array.isArray(window.disciplinasSelecionadas) && window.disciplinasSelecionadas.length === 0) {
+                        e.preventDefault();
+                        alert('Selecione pelo menos uma disciplina antes de avançar.');
+                        return;
+                    }
+                    if (typeof window.aguardarSalvamentoSelecoes === 'function') {
+                        e.preventDefault();
+                        var destino = btn.getAttribute('href');
+                        window.aguardarSalvamentoSelecoes()
+                            .then(function () { window.location.href = destino; })
+                            .catch(function () { alert('Não foi possível salvar as seleções. Corrija o erro exibido antes de avançar.'); });
+                    }
+                });
             }
             else if (path === '/config') {
                 // Aba atual via hash ou default
@@ -208,7 +239,11 @@
                         history.replaceState(null, '', '#tab-' + proxAba);
                         updateFromTab(proxAba);
                     }
-                    // Para /generate e outras URLs, deixa o link funcionar normalmente
+                    if (href === '/generate' && Array.isArray(window.DISCIPLINAS_LIST) && window.DISCIPLINAS_LIST.length === 0) {
+                        e.preventDefault();
+                        alert('Selecione pelo menos uma disciplina antes de avançar para a geração.');
+                    }
+                    // Para /generate e outras URLs válidas, deixa o link funcionar normalmente
                 });
             }
             else if (path === '/generate' || path === '/resultados') {
@@ -220,6 +255,10 @@
         })();
     });
     </script>
+
+    <footer class="app-footer text-center text-muted py-3">
+        <small>Combinix Lovelace {{ app_version }} · modo local · dados armazenados neste computador</small>
+    </footer>
 
     {% block scripts %}{% endblock %}
 </body>
