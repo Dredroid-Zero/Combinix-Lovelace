@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.3-local
+
+### Recuperação automática da sessão local
+- Corrige o erro de salvamento exibido quando uma aba antiga permanece aberta após reiniciar o servidor local.
+- Em caso de token CSRF desatualizado, o servidor devolve um token renovado e a interface repete a alteração automaticamente uma única vez.
+- O usuário não precisa mais recarregar manualmente a página para recuperar o salvamento de disciplinas e professores.
+- Adiciona teste automatizado para o fluxo: token antigo rejeitado, token renovado recebido e salvamento repetido com sucesso.
+
 ## 2.1.2-local
 
 ### Disciplinas externas

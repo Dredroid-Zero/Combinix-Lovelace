@@ -20,7 +20,7 @@ from services.solver import (
     analisar_cobertura_professores as solver_analisar_cobertura_professores,
 )
 
-APP_VERSION = '2.1.2-local'
+APP_VERSION = '2.1.3-local'
 
 app = Flask(__name__)
 
@@ -90,7 +90,15 @@ def _seguranca_basica():
     if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
         supplied = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
         if not supplied or not hmac.compare_digest(str(supplied), str(token)):
-            return jsonify({'status':'erro', 'mensagem':'Sessão expirada ou token de segurança inválido. Recarregue a página.'}), 403
+            # A página pode permanecer aberta enquanto o servidor local é reiniciado.
+            # Nesse caso, o navegador ainda envia o token antigo. Devolvemos o token
+            # atual para que a interface refaça a operação automaticamente uma vez.
+            return jsonify({
+                'status': 'erro',
+                'mensagem': 'Sessão renovada automaticamente. Tentando salvar novamente...',
+                'csrf_token': token,
+                'csrf_refresh': True,
+            }), 403
 
 
 @app.after_request

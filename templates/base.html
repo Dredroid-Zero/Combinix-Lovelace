@@ -58,17 +58,46 @@
     <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
     <script>
     // Proteção CSRF transparente para todas as alterações locais.
+    // Se o servidor for reiniciado enquanto uma aba antiga continua aberta,
+    // renova o token e repete a alteração uma única vez automaticamente.
     (function () {
         var originalFetch = window.fetch.bind(window);
-        var csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        var meta = document.querySelector('meta[name="csrf-token"]');
+
+        function currentCsrf() {
+            return meta ? meta.getAttribute('content') : '';
+        }
+
+        function updateCsrf(token) {
+            if (token && meta) meta.setAttribute('content', token);
+        }
+
         window.fetch = function(resource, options) {
             options = options || {};
             var method = String(options.method || 'GET').toUpperCase();
-            if (['POST','PUT','PATCH','DELETE'].indexOf(method) >= 0) {
+            var isMutation = ['POST','PUT','PATCH','DELETE'].indexOf(method) >= 0;
+            if (isMutation) {
                 options.headers = new Headers(options.headers || {});
-                options.headers.set('X-CSRF-Token', csrf);
+                options.headers.set('X-CSRF-Token', currentCsrf());
             }
-            return originalFetch(resource, options);
+
+            return originalFetch(resource, options).then(function(response) {
+                if (!isMutation || response.status !== 403 || options.__csrfRetried) {
+                    return response;
+                }
+                return response.clone().json().then(function(data) {
+                    if (!data || !data.csrf_refresh || !data.csrf_token) {
+                        return response;
+                    }
+                    updateCsrf(data.csrf_token);
+                    options.__csrfRetried = true;
+                    options.headers = new Headers(options.headers || {});
+                    options.headers.set('X-CSRF-Token', data.csrf_token);
+                    return originalFetch(resource, options);
+                }).catch(function() {
+                    return response;
+                });
+            });
         };
     })();
     </script>

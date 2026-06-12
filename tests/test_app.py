@@ -40,6 +40,23 @@ class AppRoutesTests(unittest.TestCase):
         response = self.client.post('/reset')
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json['status'], 'erro')
+        self.assertTrue(response.json['csrf_refresh'])
+        self.assertTrue(response.json['csrf_token'])
+
+    def test_csrf_desatualizado_fornece_token_para_repetir_salvamento(self):
+        # Simula uma aba antiga aberta antes do reinício do servidor local.
+        outro_cliente = combinix.app.test_client()
+        payload = {'disciplinas': [], 'professores': []}
+        rejeitada = outro_cliente.post('/salvar_selecoes', json=payload,
+                                       headers={'X-CSRF-Token': 'token-antigo'})
+        self.assertEqual(rejeitada.status_code, 403)
+        self.assertTrue(rejeitada.json['csrf_refresh'])
+        token_novo = rejeitada.json['csrf_token']
+        self.assertTrue(token_novo)
+        repetida = outro_cliente.post('/salvar_selecoes', json=payload,
+                                      headers={'X-CSRF-Token': token_novo})
+        self.assertEqual(repetida.status_code, 200)
+        self.assertEqual(repetida.json['status'], 'ok')
 
     def test_path_traversal_de_catalogo_e_bloqueado(self):
         response = self.client.get('/api/disciplinas/..%2Fapp')

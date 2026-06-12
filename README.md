@@ -1,8 +1,12 @@
-# Combinix Lovelace 2.1.2 Local
+# Combinix Lovelace 2.1.3 Local
 
 O **Combinix Lovelace** monta grades acadêmicas automaticamente a partir das disciplinas, professores e restrições definidas pela coordenação. Esta versão foi organizada para uso **local**, em um único computador, mas a persistência já foi separada por `workspace` para facilitar a futura inclusão de login e uma área individual para cada coordenador.
 
 
+
+## Correção 2.1.3 — recuperação automática do salvamento
+
+Quando o servidor local é reiniciado enquanto uma aba antiga permanece aberta no navegador, o token de segurança anterior deixa de ser válido. A interface agora renova esse token automaticamente e repete o salvamento uma única vez, sem exigir que o usuário recarregue a página.
 
 ## Novidades 2.1.2 — disciplinas externas, recomendações navegáveis e regeneração
 
@@ -84,7 +88,7 @@ Execute `diagnostico_local.bat`. Ele cria o arquivo `diagnostico_combinix.txt` c
 
 ### Caso apareça uma pergunta sobre finalizar o arquivo em lotes
 
-Essa pergunta normalmente aparece depois de uma interrupção manual com `Ctrl+C`. Responda `S`, feche a janela e execute novamente o `run_local.bat`. A versão `2.1.2-local` não executa `pip install`.
+Essa pergunta normalmente aparece depois de uma interrupção manual com `Ctrl+C`. Responda `S`, feche a janela e execute novamente o `run_local.bat`. A versão `2.1.3-local` não executa `pip install`.
 
 ## Execução manual opcional
 
@@ -233,4 +237,4 @@ docs/                       documentação técnica
 
 ## Versão
 
-`2.1.2-local`
+`2.1.3-local`
