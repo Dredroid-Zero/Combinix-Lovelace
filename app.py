@@ -20,7 +20,7 @@ from services.solver import (
     analisar_cobertura_professores as solver_analisar_cobertura_professores,
 )
 
-APP_VERSION = '2.2.0-hybrid'
+APP_VERSION = '2.2.2-hybrid'
 
 # Persistência híbrida automática:
 # - local: JSONs dentro da pasta do projeto;
@@ -389,18 +389,19 @@ def _int_field(value, name, minimum, maximum):
         raise ValueError(f'{name} deve ficar entre {minimum} e {maximum}.')
     return number
 
-def _sanitize_disciplina(raw, default_curso='Geral'):
+def _sanitize_disciplina(raw, default_curso='Geral', permitir_carga_zero=False):
     if not isinstance(raw, dict):
         raise ValueError('Disciplina inválida.')
     nome = str(raw.get('nome', '')).strip()
     if not nome:
         raise ValueError('Informe o nome da disciplina.')
+    carga_minima = 0 if permitir_carga_zero else 1
     return {
         'nome': nome[:180],
         'codigo': str(raw.get('codigo', 'MAN') or 'MAN').strip()[:40],
         'curso': str(raw.get('curso', default_curso) or default_curso).strip()[:100],
         'semestre': _int_field(raw.get('semestre', 1), 'Semestre', 1, 30),
-        'carga_horaria': _int_field(raw.get('carga_horaria', raw.get('carga', 60)), 'Carga horária', 1, 1000),
+        'carga_horaria': _int_field(raw.get('carga_horaria', raw.get('carga', 60)), 'Carga horária', carga_minima, 1000),
     }
 
 def _sanitize_professor(raw):
@@ -836,11 +837,15 @@ def api_disciplinas(curso):
     if not path:
         return jsonify({'erro':'Catálogo não encontrado.'}), 404
     try:
-        data = [_sanitize_disciplina(d, curso) for d in _load_catalog_list(path)]
+        # Componentes curriculares com carga horária zero são válidos no
+        # catálogo (por exemplo, exames e TCC sem encontro semanal), mas não
+        # podem ser adicionados à grade recorrente. A interface os exibe como
+        # itens informativos e desativa a seleção.
+        data = [_sanitize_disciplina(d, curso, permitir_carga_zero=True) for d in _load_catalog_list(path)]
         return jsonify(data)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         logging.warning('[Combinix] Catálogo de disciplinas inválido: %s', exc)
-        return jsonify({'erro':'Catálogo de disciplinas inválido.'}), 422
+        return jsonify({'erro':'Catálogo de disciplinas inválido.', 'mensagem':str(exc)}), 422
 
 @app.route('/api/professores/<path:curso>')
 def api_professores(curso):
@@ -851,7 +856,7 @@ def api_professores(curso):
         return jsonify([_sanitize_professor(p) for p in _load_catalog_list(path)])
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         logging.warning('[Combinix] Catálogo de professores inválido: %s', exc)
-        return jsonify({'erro':'Catálogo de professores inválido.'}), 422
+        return jsonify({'erro':'Catálogo de professores inválido.', 'mensagem':str(exc)}), 422
 
 # ─── Seleção ───────────────────────────────────────────────────────────────
 def _sanitize_selected_disciplines(raw):

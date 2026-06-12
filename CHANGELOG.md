@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.2.2-hybrid
+
+### Catálogo PROFMAT
+- Normaliza as disciplinas eletivas para o 5º semestre, mantendo o catálogo compatível com a validação numérica do sistema.
+- Aceita componentes curriculares com carga horária zero nos catálogos, como exames e TCC sem encontro semanal.
+- Exibe esses componentes como itens informativos desativados na seleção, evitando a criação indevida de aulas recorrentes.
+- O botão **Selecionar todos** ignora automaticamente componentes sem horário semanal.
+- Mostra a causa detalhada quando um catálogo JSON inválido é rejeitado.
+
+## 2.2.1-hybrid
+
+### Correção do cadastro manual no modo Vercel
+- Centraliza a inclusão manual de disciplinas e professores no endpoint atômico `/salvar_selecoes`.
+- Impede que um snapshot antigo do IndexedDB sobrescreva escolhas feitas imediatamente antes do cadastro manual.
+- Centraliza também as remoções da tela inicial na mesma fila de salvamento para preservar a ordem das alterações.
+- Mantém as referências globais das listas sincronizadas após filtros, remoções e rollback de erro.
+- Adiciona regressões automatizadas para confirmar que a interface web utiliza exclusivamente a fila atômica.
+
 ## 2.2.0-hybrid
 
 ### Persistência web demonstrativa

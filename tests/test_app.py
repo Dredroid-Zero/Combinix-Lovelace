@@ -62,6 +62,27 @@ class AppRoutesTests(unittest.TestCase):
         response = self.client.get('/api/disciplinas/..%2Fapp')
         self.assertEqual(response.status_code, 404)
 
+    def test_catalogo_profmat_aceita_componentes_informativos_sem_horario(self):
+        response = self.client.get('/api/disciplinas/ProfMat')
+        self.assertEqual(response.status_code, 200, response.data)
+        disciplinas = response.json
+        self.assertEqual(len(disciplinas), 26)
+        informativas = [d for d in disciplinas if d['carga_horaria'] == 0]
+        self.assertEqual({d['codigo'] for d in informativas}, {'MA20', 'CMPM0010', 'MA24'})
+        self.assertTrue(all(isinstance(d['semestre'], int) for d in disciplinas))
+        self.assertTrue(all(d['semestre'] == 5 for d in disciplinas if d['codigo'].startswith('MA3') or d['codigo'].startswith('MA4')))
+
+    def test_componente_sem_horario_nao_pode_ser_adicionado_a_grade(self):
+        response = self.client.post('/salvar_selecoes', json={
+            'disciplinas': [{
+                'nome': 'Exame Nacional de Qualificação', 'codigo': 'MA20',
+                'curso': 'ProfMat', 'semestre': 5, 'carga_horaria': 0,
+            }],
+            'professores': [],
+        }, headers=self.headers)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Carga horária', response.json['mensagem'])
+
     def test_formulario_manual_invalido_retorna_400(self):
         response = self.client.post('/adicionar_professor_manual', data={'nome': ''}, headers=self.headers)
         self.assertEqual(response.status_code, 400)

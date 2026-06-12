@@ -153,6 +153,73 @@ class BrowserStorageModeTests(unittest.TestCase):
         )
         self.assertIn('query-ok', out)
 
+    def test_index_cadastro_manual_usa_mesma_fila_atomica_das_selecoes(self):
+        out = self._run_isolated(
+            r"""
+            import json, re
+            import app
+
+            client = app.app.test_client()
+            first = client.get('/')
+            csrf = json.loads(re.search(r'window\.COMBINIX_CSRF = (.*?);', first.data.decode('utf-8')).group(1))
+            rendered = client.post('/', data={'browser_state': '{}', 'csrf_token': csrf})
+            assert rendered.status_code == 200
+            html = rendered.data.decode('utf-8')
+
+            # Regressão: as rotas paralelas causavam perda de estado na Vercel
+            # quando ainda havia uma resposta anterior pendente no IndexedDB.
+            assert "fetch('/adicionar_disciplina_manual'" not in html
+            assert "fetch('/adicionar_professor_manual'" not in html
+            assert "fetch('/remover_disciplina'" not in html
+            assert "fetch('/remover_professor'" not in html
+            assert 'disciplinasSelecionadas.push(novaDisciplina);' in html
+            assert 'professoresSelecionados.push(novoProfessor);' in html
+            assert 'window.disciplinasSelecionadas = disciplinasSelecionadas;' in html
+            assert 'window.professoresSelecionados = professoresSelecionados;' in html
+            assert 'function discAgendavel(d)' in html
+            assert 'if (!discAgendavel(d)) return;' in html
+            assert 'Informativo: não gera horário' in html
+            print('manual-atomic-ui-ok')
+            """,
+            {'COMBINIX_STORAGE_MODE': 'browser', 'VERCEL': ''},
+        )
+        self.assertIn('manual-atomic-ui-ok', out)
+
+    def test_fluxo_browser_salvamento_atomico_preserva_escolhas_ao_incluir_manual(self):
+        out = self._run_isolated(
+            r"""
+            import json, re
+            import app
+
+            client = app.app.test_client()
+            first = client.get('/')
+            csrf = json.loads(re.search(r'window\.COMBINIX_CSRF = (.*?);', first.data.decode('utf-8')).group(1))
+
+            catalogo = {'nome':'Cálculo I','codigo':'MAT1','curso':'Matemática','semestre':1,'carga_horaria':60}
+            ada = {'nome':'Ada'}
+            first_save = client.post('/salvar_selecoes', json={
+                'disciplinas': [catalogo], 'professores': [ada], '_browser_state': {},
+            }, headers={'X-CSRF-Token': csrf})
+            assert first_save.status_code == 200, first_save.data
+            state = first_save.json['browser_state']
+
+            manual = {'nome':'Tópicos Especiais','codigo':'MAN','curso':'Manual','semestre':2,'carga_horaria':30}
+            grace = {'nome':'Grace'}
+            second_save = client.post('/salvar_selecoes', json={
+                'disciplinas': [catalogo, manual],
+                'professores': [ada, grace],
+                '_browser_state': state,
+            }, headers={'X-CSRF-Token': csrf})
+            assert second_save.status_code == 200, second_save.data
+            state = second_save.json['browser_state']
+            assert [d['nome'] for d in state['disciplinas_selecionadas']] == ['Cálculo I', 'Tópicos Especiais']
+            assert [p['nome'] for p in state['professores_selecionados']] == ['Ada', 'Grace']
+            print('manual-atomic-flow-ok')
+            """,
+            {'COMBINIX_STORAGE_MODE': 'browser', 'VERCEL': ''},
+        )
+        self.assertIn('manual-atomic-flow-ok', out)
+
 
 if __name__ == '__main__':
     unittest.main()

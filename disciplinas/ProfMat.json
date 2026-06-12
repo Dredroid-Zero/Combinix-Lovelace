@@ -1,0 +1,158 @@
+[
+  {
+    "nome": "Números e Funções Reais",
+    "codigo": "MA11",
+    "carga_horaria": 105,
+    "semestre": 1
+  },
+  {
+    "nome": "Matemática Discreta",
+    "codigo": "MA12",
+    "carga_horaria": 105,
+    "semestre": 1
+  },
+  {
+    "nome": "Geometria",
+    "codigo": "MA13",
+    "carga_horaria": 105,
+    "semestre": 2
+  },
+  {
+    "nome": "Aritmética",
+    "codigo": "MA14",
+    "carga_horaria": 105,
+    "semestre": 2
+  },
+  {
+    "nome": "Resolução de Problemas",
+    "codigo": "MA21",
+    "carga_horaria": 60,
+    "semestre": 3
+  },
+  {
+    "nome": "Fundamentos de Cálculo",
+    "codigo": "MA22",
+    "carga_horaria": 105,
+    "semestre": 4
+  },
+  {
+    "nome": "Geometria Analítica",
+    "codigo": "MA23",
+    "carga_horaria": 105,
+    "semestre": 4
+  },
+  {
+    "nome": "Eletiva I",
+    "codigo": "Eletiva_I",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Eletiva II",
+    "codigo": "Eletiva_II",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Exame Nacional de Qualificação",
+    "codigo": "MA20",
+    "carga_horaria": 0,
+    "semestre": 5
+  },
+  {
+    "nome": "Exame de Proficiência em Língua Estrangeira",
+    "codigo": "CMPM0010",
+    "carga_horaria": 0,
+    "semestre": 5
+  },
+  {
+    "nome": "Trabalho de Conclusão de Curso (Finalização)",
+    "codigo": "MA24",
+    "carga_horaria": 0,
+    "semestre": 6
+  },
+  {
+    "nome": "Tópicos de História da Matemática",
+    "codigo": "MA31",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Tópicos de Teoria dos Números",
+    "codigo": "MA32",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Introdução à Álgebra Linear",
+    "codigo": "MA33",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Tópicos de Cálculo Diferencial e Integral",
+    "codigo": "MA34",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Matemática e Atualidade I",
+    "codigo": "MA35",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Recursos Computacionais no Ensino de Matemática",
+    "codigo": "MA36",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Modelagem Matemática",
+    "codigo": "MA37",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Polinômios e Equações Algébricas",
+    "codigo": "MA38",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Geometria Espacial",
+    "codigo": "MA39",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Tópicos de Matemática",
+    "codigo": "MA40",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Probabilidade e Estatística",
+    "codigo": "MA41",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Avaliação Educacional",
+    "codigo": "MA42",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Cálculo Numérico",
+    "codigo": "MA43",
+    "carga_horaria": 60,
+    "semestre": 5
+  },
+  {
+    "nome": "Matemática e Atualidade II",
+    "codigo": "MA44",
+    "carga_horaria": 60,
+    "semestre": 5
+  }
+]

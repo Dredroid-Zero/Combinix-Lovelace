@@ -1,8 +1,21 @@
-# Combinix Lovelace 2.2.0 Híbrido
+# Combinix Lovelace 2.2.2 Híbrido
 
-O **Combinix Lovelace** monta grades acadêmicas automaticamente a partir das disciplinas, professores e restrições definidas pela coordenação. A versão 2.2.0 possui persistência **híbrida**: continua funcionando localmente com arquivos JSON e também pode ser publicada na Vercel como demonstração web, salvando os dados somente no navegador de cada visitante.
+O **Combinix Lovelace** monta grades acadêmicas automaticamente a partir das disciplinas, professores e restrições definidas pela coordenação. A versão 2.2.2 possui persistência **híbrida**: continua funcionando localmente com arquivos JSON e também pode ser publicada na Vercel como demonstração web, salvando os dados somente no navegador de cada visitante.
 
 
+
+## Novidades 2.2.2 — catálogo PROFMAT
+
+- O catálogo PROFMAT foi normalizado: as eletivas utilizam o 5º semestre numérico.
+- Componentes curriculares com carga horária zero, como exames e TCC sem encontro semanal, continuam visíveis como itens informativos.
+- Esses componentes aparecem desativados na seleção e não são adicionados à grade recorrente.
+- Quando um catálogo JSON inválido for rejeitado, a interface passa a mostrar a causa detalhada.
+
+## Novidades 2.2.1 — correção do cadastro manual na Vercel
+
+- O cadastro manual de disciplinas e professores agora utiliza a mesma fila atômica das seleções existentes.
+- Ao adicionar um novo item na versão publicada, escolhas marcadas instantes antes não são mais sobrescritas por um snapshot antigo do IndexedDB.
+- A remoção de itens na tela inicial também foi centralizada na mesma fila para manter o estado consistente.
 
 ## Novidades 2.2.0 — modo web demonstrativo com IndexedDB
 
@@ -111,7 +124,7 @@ Execute `diagnostico_local.bat`. Ele cria o arquivo `diagnostico_combinix.txt` c
 
 ### Caso apareça uma pergunta sobre finalizar o arquivo em lotes
 
-Essa pergunta normalmente aparece depois de uma interrupção manual com `Ctrl+C`. Responda `S`, feche a janela e execute novamente o `run_local.bat`. A versão `2.2.0-hybrid` não executa `pip install`.
+Essa pergunta normalmente aparece depois de uma interrupção manual com `Ctrl+C`. Responda `S`, feche a janela e execute novamente o `run_local.bat`. A versão `2.2.2-hybrid` não executa `pip install`.
 
 ## Execução manual opcional
 
@@ -242,7 +255,7 @@ Quando houver autenticação, o modo web deverá migrar para um banco de dados a
 
 ## Segurança e publicação futura
 
-A versão local continua adequada para uso individual em `127.0.0.1`. Na Vercel, a versão 2.2.0 funciona como **modo web demonstrativo**: cada navegador possui seu próprio estado e o servidor não grava arquivos durante a execução.
+A versão local continua adequada para uso individual em `127.0.0.1`. Na Vercel, a versão 2.2.2 funciona como **modo web demonstrativo**: cada navegador possui seu próprio estado e o servidor não grava arquivos durante a execução.
 
 Esse modo ainda não substitui uma versão multiusuário. Antes de disponibilizar contas para coordenadores, implemente autenticação, banco de dados transacional, autorização por usuário, políticas de backup, testes de concorrência e gerenciamento de segredos.
 
@@ -278,4 +291,4 @@ docs/                       documentação técnica
 
 ## Versão
 
-`2.2.0-hybrid`
+`2.2.2-hybrid`

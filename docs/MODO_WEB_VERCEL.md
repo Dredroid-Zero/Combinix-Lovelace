@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-A Vercel não deve ser utilizada para gravar os JSONs locais durante a execução. A versão 2.2.0 ativa automaticamente o modo `browser` quando a variável `VERCEL` está presente.
+A Vercel não deve ser utilizada para gravar os JSONs locais durante a execução. A versão 2.2.2 ativa automaticamente o modo `browser` quando a variável `VERCEL` está presente.
 
 ## Onde os dados ficam
 

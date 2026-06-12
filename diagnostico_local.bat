@@ -3,7 +3,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 set "LOG=diagnostico_combinix.txt"
 (
-  echo Diagnostico Combinix Lovelace 2.2.0-hybrid
+  echo Diagnostico Combinix Lovelace 2.2.2-hybrid
   echo Data: %date% %time%
   echo Pasta: %cd%
   echo.
